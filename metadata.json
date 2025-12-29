@@ -1,0 +1,9 @@
+{
+  "name": "NexaFya Telemedicine",
+  "description": "A comprehensive, medical-grade digital health ecosystem connecting patients, doctors, pharmacies, and community health workers with AI-powered insights.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

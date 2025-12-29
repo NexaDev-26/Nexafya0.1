@@ -1,0 +1,154 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* NexaFya Global Styles */
+:root {
+  --nexafya-blue: #0066CC;
+  --nexafya-green: #00A86B;
+  --nexafya-orange: #FF6B35;
+  --shadow-soft: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  --shadow-medical: 0 4px 20px rgba(0, 102, 204, 0.08);
+}
+
+/* Dark mode specific brand colors */
+.dark {
+  --nexafya-blue: #4D94FF;
+  --nexafya-green: #33C18F;
+  --nexafya-orange: #FF6B35;
+  --shadow-soft: 0 2px 15px -3px rgba(0, 0, 0, 0.3), 0 10px 20px -2px rgba(0, 0, 0, 0.2);
+  --shadow-medical: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8FAFC;
+  color: #1E293B;
+  line-height: 1.6;
+}
+
+.dark body {
+  background-color: #0A1B2E;
+  color: #E2E8F0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Medical-grade aesthetics */
+.card-medical {
+  @apply bg-white dark:bg-white rounded-3xl shadow-soft dark:shadow-lg p-6 transition-all duration-300 hover:shadow-medical dark:hover:shadow-xl;
+}
+
+.btn-primary {
+  @apply bg-nexafya-blue text-white px-6 py-3 rounded-2xl font-medium transition-all duration-200 hover:bg-blue-700 hover:shadow-lg active:scale-95;
+}
+
+.btn-secondary {
+  @apply bg-nexafya-green text-white px-6 py-3 rounded-2xl font-medium transition-all duration-200 hover:bg-green-600 hover:shadow-lg active:scale-95;
+}
+
+.btn-outline {
+  @apply border-2 border-nexafya-blue text-nexafya-blue px-6 py-3 rounded-2xl font-medium transition-all duration-200 hover:bg-nexafya-blue hover:text-white active:scale-95;
+}
+
+.input-medical {
+  @apply w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-nexafya-blue focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-200;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(10, 27, 46, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Loading spinner */
+.spinner {
+  border: 3px solid #E2E8F0;
+  border-top: 3px solid var(--nexafya-blue);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Leaflet map fixes */
+.leaflet-container {
+  @apply rounded-3xl shadow-soft;
+  z-index: 0;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .card-medical {
+    @apply p-4;
+  }
+  
+  .btn-primary, .btn-secondary, .btn-outline {
+    @apply px-4 py-2 text-sm;
+  }
+}
+

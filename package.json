@@ -1,0 +1,47 @@
+{
+  "name": "nexafya-telemedicine",
+  "version": "1.0.0",
+  "description": "NexaFya Telemedicine Platform - Firebase Edition",
+  "main": "index.tsx",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "setup:firebase": "node firebase/setup-admin.js"
+  },
+  "keywords": [
+    "telemedicine",
+    "react",
+    "firebase",
+    "firestore",
+    "healthcare",
+    "tanzania"
+  ],
+  "author": "NexaDev",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.31.0",
+    "@types/leaflet": "^1.9.14",
+    "@types/qrcode": "^1.5.6",
+    "firebase": "^12.7.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.556.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/react": "^19.2.1",
+    "@types/react-dom": "^19.2.1",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.23",
+    "firebase-admin": "^13.6.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

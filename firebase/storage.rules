@@ -1,0 +1,74 @@
+// Firebase Storage Security Rules
+// Copy these rules to Firebase Console > Storage > Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Helper function to check if file is a PDF
+    function isPDF() {
+      return request.resource.contentType == 'application/pdf';
+    }
+    
+    // Helper function to check file size (max 10MB)
+    function isValidSize() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+    
+    // User avatars - users can upload their own avatar
+    match /avatars/{userId}/{fileName} {
+      allow read: if true; // Public read
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId && 
+                     isImage() && 
+                     isValidSize();
+    }
+    
+    // Health records - users can upload their own health records
+    match /health-records/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId && 
+                     (isImage() || isPDF()) && 
+                     isValidSize();
+    }
+    
+    // Prescriptions - doctors can upload, patients can read
+    match /prescriptions/{prescriptionId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (isImage() || isPDF()) && isValidSize();
+    }
+    
+    // Article images - authenticated users can upload
+    match /articles/{articleId}/{fileName} {
+      allow read: if true; // Public read
+      allow write: if isAuthenticated() && isImage() && isValidSize();
+    }
+    
+    // Verification documents - users can upload for verification
+    match /verifications/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId && 
+                     (isImage() || isPDF()) && 
+                     isValidSize();
+    }
+    
+    // Platform logos - authenticated users can upload (admin access enforced in component)
+    match /platform/{fileName} {
+      allow read: if true; // Public read for logos
+      allow write: if isAuthenticated() && isImage() && isValidSize();
+    }
+  }
+}
+

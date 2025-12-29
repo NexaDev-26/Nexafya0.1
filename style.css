@@ -1,0 +1,147 @@
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.75rem;
+}
+ 
+.dark {
+  /* Deep blue-black background matching design images */
+  --background: 215 28% 8%; /* Deep blue-black #0A0F1C */
+  --foreground: 0 0% 100%; /* Pure white */
+  /* Cards use slightly lighter dark blue */
+  --card: 215 25% 12%; /* Dark blue card background */
+  --card-foreground: 0 0% 100%; /* White text on cards */
+  --popover: 215 28% 8%; /* Deep blue-black */
+  --popover-foreground: 0 0% 100%; /* White */
+  /* Primary actions - Teal accent */
+  --primary: 173 80% 40%; /* Teal-600 #14B8A6 */
+  --primary-foreground: 0 0% 100%; /* White */
+  /* Secondary elements */
+  --secondary: 215 25% 15%; /* Slightly lighter dark blue */
+  --secondary-foreground: 0 0% 100%; /* White */
+  /* Muted elements */
+  --muted: 215 20% 18%; /* Dark blue-gray */
+  --muted-foreground: 215 16% 70%; /* Light gray text */
+  /* Accent - Teal */
+  --accent: 173 80% 40%; /* Teal-600 */
+  --accent-foreground: 0 0% 100%; /* White */
+  /* Destructive/error */
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%; /* White */
+  /* Borders - subtle dark borders */
+  --border: 215 20% 25%; /* Dark blue-gray border */
+  --input: 215 25% 15%; /* Dark input background */
+  --ring: 173 80% 40%; /* Teal ring */
+}
+
+/* Custom scrollbar for Webkit */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; 
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(17, 24, 39, 0.5); /* gray-900 with opacity */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563; /* gray-600 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; 
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* gray-500 */
+}
+
+/* Accessibility Improvements */
+*:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+}
+
+.skip-to-content:focus {
+  left: 0;
+  top: 0;
+  padding: 1rem;
+  background: #3B82F6;
+  color: white;
+  border-radius: 0 0 8px 0;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Improved focus states */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
