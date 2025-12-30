@@ -57,11 +57,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         AVAILABLE 24/7 ACROSS TANZANIA
                     </div>
                     <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-gray-900 dark:text-white leading-[1.1] tracking-tight max-w-4xl transition-colors duration-300">
-                       Your Health, <br/>
-                       <span className="text-teal-600 dark:text-teal-400">In Your Hands.</span>
+                       Healthcare That Comes <br/>
+                       <span className="text-teal-600 dark:text-teal-400">To You, Not The Other Way Around.</span>
                     </h1>
                     <p className="text-lg md:text-xl text-gray-500 dark:text-gray-300 leading-relaxed max-w-2xl transition-colors duration-300">
-                       Skip the queue. Consult top specialists, order medicine, and track your vitals—all from the comfort of your home in Tanzania.
+                       No more waiting rooms. No more long queues. Get instant access to verified specialists, same-day medicine delivery, and AI-powered health insights—all from your phone. Join thousands of Tanzanians taking control of their health, today.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
                        <button onClick={() => handleNavClick('patients')} className="px-8 py-4 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-full font-bold text-lg transition-all hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2">
