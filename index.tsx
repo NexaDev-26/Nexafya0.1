@@ -6,6 +6,8 @@ import { Dashboard } from './components/Dashboard';
 import { CHWDashboard } from './components/CHWDashboard';
 import { CourierDashboard } from './components/CourierDashboard';
 import { AdminAnalytics } from './components/AdminAnalytics';
+// Import addSampleDoctors utility to make it available globally
+import './utils/addSampleDoctors';
 import { UserManagement } from './components/UserManagement';
 import { SymptomChecker } from './components/SymptomChecker';
 import { Consultations } from './components/Consultations';

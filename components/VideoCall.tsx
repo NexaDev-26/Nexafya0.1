@@ -104,18 +104,35 @@ export const VideoCall: React.FC<VideoCallProps> = ({ onEnd, doctorName = "Dr. D
     };
   }, []);
 
-  const createPeerConnection = () => {
+  const createPeerConnection = async () => {
       if (peerConnection.current) return;
-      peerConnection.current = new RTCPeerConnection(rtcConfig);
-      peerConnection.current.onicecandidate = (event) => {
-          if (event.candidate) socketRef.current?.emit('ice-candidate', { candidate: event.candidate, roomId });
-      };
-      peerConnection.current.ontrack = (event) => {
-          if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = event.streams[0];
-              setConnectionStatus("Connected");
+      
+      // Use WebRTC service
+      const { webrtcService } = await import('../services/webrtcService');
+      
+      peerConnection.current = webrtcService.createPeerConnection(
+          roomId,
+          user?.id || 'user',
+          (candidate) => {
+              // Send ICE candidate via signaling
+              webrtcService.sendSignalingMessage(roomId, {
+                  type: 'ice-candidate',
+                  from: user?.id || 'user',
+                  to: '', // Broadcast
+                  data: candidate,
+              });
+          },
+          (stream) => {
+              // Handle remote stream
+              if (remoteVideoRef.current) {
+                  remoteVideoRef.current.srcObject = stream;
+                  setConnectionStatus("Connected");
+              }
+          },
+          (state) => {
+              setConnectionStatus(state);
           }
-      };
+      );
   };
 
   const createOffer = async () => {

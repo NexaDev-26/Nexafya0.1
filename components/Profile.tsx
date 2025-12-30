@@ -10,6 +10,7 @@ import { Settings } from './Settings';
 import { SubscriptionManagement } from './SubscriptionManagement';
 import { NHIFIntegration } from './NHIFIntegration';
 import { ReferralProgram } from './ReferralProgram';
+import { VerificationDocumentUpload } from './VerificationDocumentUpload';
 import { storage, storageRefs, db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useTransactions } from '../hooks/useFirestore';
@@ -1516,6 +1517,9 @@ export const Profile: React.FC<ProfileProps> = ({
                 )}
                 {activeTab === 'referral' && (
                     <ReferralProgram />
+                )}
+                {activeTab === 'verification' && (
+                    <VerificationDocumentUpload />
                 )}
                 {activeTab === 'settings' && (
                     <Settings user={user} onLogout={onLogout} />

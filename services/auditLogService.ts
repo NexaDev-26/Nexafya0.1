@@ -1,137 +1,256 @@
 /**
  * Audit Log Service
- * Tracks all sensitive actions for security and compliance
+ * Tracks all system activities for security and compliance
  */
 
 import { db as firestore } from '../lib/firebase';
-import { collection, addDoc, query, where, getDocs, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
 import { UserRole } from '../types';
 
 export type AuditAction =
-  | 'USER_LOGIN'
-  | 'USER_LOGOUT'
-  | 'USER_CREATE'
-  | 'USER_UPDATE'
-  | 'USER_DELETE'
-  | 'APPOINTMENT_CREATE'
-  | 'APPOINTMENT_UPDATE'
-  | 'APPOINTMENT_CANCEL'
-  | 'PRESCRIPTION_CREATE'
-  | 'PRESCRIPTION_UPDATE'
-  | 'PAYMENT_CREATE'
-  | 'PAYMENT_VERIFY'
-  | 'PAYMENT_APPROVE'
-  | 'PAYMENT_REJECT'
-  | 'MEDICAL_RECORD_ACCESS'
-  | 'MEDICAL_RECORD_UPDATE'
-  | 'INVENTORY_UPDATE'
-  | 'ORDER_CREATE'
-  | 'ORDER_UPDATE'
-  | 'ORDER_CANCEL'
-  | 'ADMIN_SETTINGS_UPDATE'
-  | 'ROLE_CHANGE'
-  | 'VERIFICATION_APPROVE'
-  | 'VERIFICATION_REJECT'
-  | 'NHIF_VERIFY'
-  | 'SOS_ACTIVATE'
-  | 'DATA_EXPORT'
-  | 'DATA_DELETE';
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'LOGIN_FAILED'
+  | 'USER_CREATED'
+  | 'USER_UPDATED'
+  | 'USER_DELETED'
+  | 'PASSWORD_CHANGED'
+  | 'PASSWORD_RESET'
+  | 'PAYMENT_PROCESSED'
+  | 'PAYMENT_VERIFIED'
+  | 'TRANSACTION_CREATED'
+  | 'TRANSACTION_UPDATED'
+  | 'APPOINTMENT_CREATED'
+  | 'APPOINTMENT_UPDATED'
+  | 'APPOINTMENT_CANCELLED'
+  | 'PRESCRIPTION_CREATED'
+  | 'PRESCRIPTION_UPDATED'
+  | 'ARTICLE_CREATED'
+  | 'ARTICLE_UPDATED'
+  | 'ARTICLE_VERIFIED'
+  | 'SETTINGS_UPDATED'
+  | 'ADMIN_ACTION'
+  | 'DATA_EXPORTED'
+  | 'DATA_DELETED'
+  | 'PERMISSION_CHANGED'
+  | 'SECURITY_ALERT';
+
+export type AuditSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export interface AuditLog {
   id?: string;
-  userId: string;
-  userName: string;
-  userRole: UserRole;
+  userId?: string;
+  userName?: string;
+  userRole?: UserRole;
   action: AuditAction;
-  resourceType: string; // e.g., 'appointment', 'prescription', 'user'
+  severity: AuditSeverity;
+  resourceType?: string; // e.g., 'user', 'transaction', 'appointment'
   resourceId?: string;
   description: string;
+  metadata?: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;
-  metadata?: Record<string, any>;
-  timestamp?: any;
+  location?: string;
+  success: boolean;
+  errorMessage?: string;
   createdAt?: any;
 }
 
 class AuditLogService {
   /**
-   * Log an audit event
+   * Create audit log entry
    */
-  async logEvent(log: Omit<AuditLog, 'id' | 'timestamp' | 'createdAt'>): Promise<string> {
+  async log(
+    log: Omit<AuditLog, 'id' | 'createdAt'>
+  ): Promise<string> {
     try {
-      const auditRef = await addDoc(collection(firestore, 'auditLogs'), {
+      // Get user agent and IP if available
+      const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : undefined;
+      
+      // Try to get IP address (requires backend or service)
+      // For now, we'll leave it undefined
+      const ipAddress = undefined;
+
+      const logRef = await addDoc(collection(firestore, 'auditLogs'), {
         ...log,
-        timestamp: serverTimestamp(),
+        userAgent,
+        ipAddress,
         createdAt: serverTimestamp(),
       });
 
-      return auditRef.id;
+      return logRef.id;
     } catch (error) {
-      console.error('Audit log error:', error);
-      throw error;
+      console.error('Create audit log error:', error);
+      // Don't throw - audit logging should not break the app
+      return '';
     }
   }
 
   /**
-   * Get audit logs with filters
+   * Log user action
    */
-  async getAuditLogs(filters: {
-    userId?: string;
-    userRole?: UserRole;
-    action?: AuditAction;
-    resourceType?: string;
-    resourceId?: string;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-  }): Promise<AuditLog[]> {
+  async logUserAction(
+    userId: string,
+    userName: string,
+    userRole: UserRole,
+    action: AuditAction,
+    description: string,
+    resourceType?: string,
+    resourceId?: string,
+    metadata?: Record<string, any>,
+    severity: AuditSeverity = 'MEDIUM'
+  ): Promise<void> {
+    await this.log({
+      userId,
+      userName,
+      userRole,
+      action,
+      severity,
+      resourceType,
+      resourceId,
+      description,
+      metadata,
+      success: true,
+    });
+  }
+
+  /**
+   * Log failed action
+   */
+  async logFailedAction(
+    userId: string | undefined,
+    userName: string | undefined,
+    userRole: UserRole | undefined,
+    action: AuditAction,
+    description: string,
+    errorMessage: string,
+    severity: AuditSeverity = 'HIGH',
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    await this.log({
+      userId,
+      userName,
+      userRole,
+      action,
+      severity,
+      description,
+      metadata,
+      errorMessage,
+      success: false,
+    });
+  }
+
+  /**
+   * Log login
+   */
+  async logLogin(userId: string, userName: string, userRole: UserRole, success: boolean, errorMessage?: string): Promise<void> {
+    await this.log({
+      userId,
+      userName,
+      userRole,
+      action: success ? 'LOGIN' : 'LOGIN_FAILED',
+      severity: success ? 'LOW' : 'MEDIUM',
+      description: success ? `User logged in successfully` : `Failed login attempt`,
+      errorMessage,
+      success,
+    });
+  }
+
+  /**
+   * Log logout
+   */
+  async logLogout(userId: string, userName: string, userRole: UserRole): Promise<void> {
+    await this.log({
+      userId,
+      userName,
+      userRole,
+      action: 'LOGOUT',
+      severity: 'LOW',
+      description: 'User logged out',
+      success: true,
+    });
+  }
+
+  /**
+   * Log security alert
+   */
+  async logSecurityAlert(
+    description: string,
+    severity: AuditSeverity,
+    userId?: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    await this.log({
+      userId,
+      action: 'SECURITY_ALERT',
+      severity,
+      description,
+      metadata,
+      success: false,
+    });
+  }
+
+  /**
+   * Get audit logs
+   */
+  async getAuditLogs(
+    filters?: {
+      userId?: string;
+      action?: AuditAction;
+      severity?: AuditSeverity;
+      resourceType?: string;
+      resourceId?: string;
+      startDate?: Date;
+      endDate?: Date;
+    },
+    limitCount: number = 100
+  ): Promise<AuditLog[]> {
     try {
-      let q = query(collection(firestore, 'auditLogs'), orderBy('timestamp', 'desc'));
+      let q = query(
+        collection(firestore, 'auditLogs'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
 
-      if (filters.userId) {
-        q = query(q, where('userId', '==', filters.userId));
+      if (filters) {
+        if (filters.userId) {
+          q = query(q, where('userId', '==', filters.userId));
+        }
+        if (filters.action) {
+          q = query(q, where('action', '==', filters.action));
+        }
+        if (filters.severity) {
+          q = query(q, where('severity', '==', filters.severity));
+        }
+        if (filters.resourceType) {
+          q = query(q, where('resourceType', '==', filters.resourceType));
+        }
+        if (filters.resourceId) {
+          q = query(q, where('resourceId', '==', filters.resourceId));
+        }
+        if (filters.startDate) {
+          q = query(q, where('createdAt', '>=', Timestamp.fromDate(filters.startDate)));
+        }
+        if (filters.endDate) {
+          q = query(q, where('createdAt', '<=', Timestamp.fromDate(filters.endDate)));
+        }
       }
 
-      if (filters.userRole) {
-        q = query(q, where('userRole', '==', filters.userRole));
-      }
-
-      if (filters.action) {
-        q = query(q, where('action', '==', filters.action));
-      }
-
-      if (filters.resourceType) {
-        q = query(q, where('resourceType', '==', filters.resourceType));
-      }
-
-      if (filters.resourceId) {
-        q = query(q, where('resourceId', '==', filters.resourceId));
-      }
-
-      if (filters.limit) {
-        q = query(q, limit(filters.limit));
-      }
-
-      const querySnapshot = await getDocs(q);
-      let logs = querySnapshot.docs.map(doc => ({
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as AuditLog[];
-
-      // Filter by date range if provided
-      if (filters.startDate || filters.endDate) {
-        logs = logs.filter(log => {
-          if (!log.timestamp) return false;
-          const logDate = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-          
-          if (filters.startDate && logDate < filters.startDate) return false;
-          if (filters.endDate && logDate > filters.endDate) return false;
-          
-          return true;
-        });
-      }
-
-      return logs;
     } catch (error) {
       console.error('Get audit logs error:', error);
       return [];
@@ -139,104 +258,51 @@ class AuditLogService {
   }
 
   /**
-   * Get audit logs for a specific resource
+   * Get failed login attempts
    */
-  async getResourceAuditLogs(resourceType: string, resourceId: string): Promise<AuditLog[]> {
-    return this.getAuditLogs({ resourceType, resourceId });
+  async getFailedLoginAttempts(
+    userId?: string,
+    hours: number = 24
+  ): Promise<AuditLog[]> {
+    try {
+      const startDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+      
+      const filters: any = {
+        action: 'LOGIN_FAILED',
+        startDate,
+      };
+
+      if (userId) {
+        filters.userId = userId;
+      }
+
+      return await this.getAuditLogs(filters, 100);
+    } catch (error) {
+      console.error('Get failed login attempts error:', error);
+      return [];
+    }
   }
 
   /**
-   * Get user activity log
+   * Get security alerts
    */
-  async getUserActivityLog(userId: string, limitCount: number = 50): Promise<AuditLog[]> {
-    return this.getAuditLogs({ userId, limit: limitCount });
-  }
+  async getSecurityAlerts(severity?: AuditSeverity): Promise<AuditLog[]> {
+    try {
+      const filters: any = {
+        action: 'SECURITY_ALERT',
+      };
 
-  /**
-   * Helper: Log user login
-   */
-  async logLogin(userId: string, userName: string, userRole: UserRole, ipAddress?: string, userAgent?: string): Promise<void> {
-    await this.logEvent({
-      userId,
-      userName,
-      userRole,
-      action: 'USER_LOGIN',
-      resourceType: 'user',
-      resourceId: userId,
-      description: `${userName} logged in`,
-      ipAddress,
-      userAgent,
-    });
-  }
+      if (severity) {
+        filters.severity = severity;
+      }
 
-  /**
-   * Helper: Log payment
-   */
-  async logPayment(
-    userId: string,
-    userName: string,
-    userRole: UserRole,
-    transactionId: string,
-    amount: number,
-    currency: string,
-    provider: string
-  ): Promise<void> {
-    await this.logEvent({
-      userId,
-      userName,
-      userRole,
-      action: 'PAYMENT_CREATE',
-      resourceType: 'transaction',
-      resourceId: transactionId,
-      description: `Payment of ${currency} ${amount} via ${provider}`,
-      metadata: { amount, currency, provider },
-    });
-  }
-
-  /**
-   * Helper: Log medical record access
-   */
-  async logMedicalRecordAccess(
-    userId: string,
-    userName: string,
-    userRole: UserRole,
-    recordId: string,
-    patientId: string
-  ): Promise<void> {
-    await this.logEvent({
-      userId,
-      userName,
-      userRole,
-      action: 'MEDICAL_RECORD_ACCESS',
-      resourceType: 'healthRecord',
-      resourceId: recordId,
-      description: `${userName} accessed medical record for patient ${patientId}`,
-      metadata: { patientId },
-    });
-  }
-
-  /**
-   * Helper: Log admin action
-   */
-  async logAdminAction(
-    userId: string,
-    userName: string,
-    action: AuditAction,
-    description: string,
-    metadata?: Record<string, any>
-  ): Promise<void> {
-    await this.logEvent({
-      userId,
-      userName,
-      userRole: UserRole.ADMIN,
-      action,
-      resourceType: 'system',
-      description,
-      metadata,
-    });
+      return await this.getAuditLogs(filters, 100);
+    } catch (error) {
+      console.error('Get security alerts error:', error);
+      return [];
+    }
   }
 }
 
 export const auditLogService = new AuditLogService();
 export default auditLogService;
-

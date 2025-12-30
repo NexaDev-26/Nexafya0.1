@@ -372,11 +372,27 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
     
-    // Symptom Sessions - patients can read/write their own
+    // Symptom Sessions - users can read/write their own
     match /symptomSessions/{sessionId} {
-      allow read: if isAuthenticated() && resource.data.patientId == request.auth.uid;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && resource.data.patientId == request.auth.uid;
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.patientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.patientId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.patientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.patientId == request.auth.uid ||
+        isAdmin()
+      );
     }
     
     // Family Members - users can manage their own family members
@@ -469,6 +485,106 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
+    }
+    
+    // Verification Documents - users can read/write their own, admins can read/write all
+    match /verificationDocuments/{documentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // User Verifications - users can read their own, admins can read/write all
+    match /userVerifications/{verificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    
+    // Lab Tests - public read, admin write
+    match /labTests/{testId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Lab Partners - public read, admin write
+    match /labPartners/{partnerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Lab Bookings - users can read/write their own, admins can read all
+    match /labBookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    
+    // Lab Results - users can read their own, admins can read/write all
+    match /labResults/{resultId} {
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid ||
+        request.auth.uid in (resource.data.sharedWith || []) ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+    
+    // Support Tickets - users can read/write their own, admins can read/write all
+    match /supportTickets/{ticketId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.assignedTo == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.assignedTo == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    
+    // Audit Logs - admins only
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if true; // System can write logs
+    }
+    
+    // System Settings - admins only
+    match /systemSettings/{settingsId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Video Call Signaling - participants can read/write
+    match /videoCalls/{callId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

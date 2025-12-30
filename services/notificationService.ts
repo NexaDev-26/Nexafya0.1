@@ -17,6 +17,7 @@ import {
   orderBy,
   limit,
   Timestamp,
+  getDoc,
 } from 'firebase/firestore';
 // Firebase Messaging is imported conditionally - only works in browser
 import { UserRole } from '../types';
@@ -154,8 +155,40 @@ class NotificationService {
         createdAt: serverTimestamp(),
       });
 
-      // In production, this would trigger FCM push notification via Cloud Functions
-      // For now, we'll just store it in Firestore
+      // Send SMS/Email if user preferences allow
+      if (notification.userId) {
+        try {
+          const userRef = doc(firestore, 'users', notification.userId);
+          const userSnap = await getDocs(query(collection(firestore, 'users'), where('__name__', '==', notification.userId)));
+          if (!userSnap.empty) {
+            const userData = userSnap.docs[0].data();
+            const phoneNumber = userData.phoneNumber || userData.phone;
+            const email = userData.email;
+            const notificationPrefs = userData.notificationPreferences || {};
+
+            // Send SMS if enabled and phone number exists
+            if (notificationPrefs.sms && phoneNumber && (notification.priority === 'HIGH' || notification.priority === 'URGENT')) {
+              const { smsService } = await import('./smsService');
+              await smsService.sendSMS(phoneNumber, `${notification.title}: ${notification.message}`);
+            }
+
+            // Send Email if enabled and email exists
+            if (notificationPrefs.email && email) {
+              const { emailService } = await import('./emailService');
+              await emailService.sendNotificationEmail(
+                email,
+                notification.title,
+                notification.message,
+                notification.actionUrl ? `${import.meta.env.VITE_APP_URL || 'http://localhost:5174'}${notification.actionUrl}` : undefined,
+                'View Details'
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error sending SMS/Email notification:', error);
+          // Don't fail the notification creation if SMS/Email fails
+        }
+      }
 
       return notifRef.id;
     } catch (error) {

@@ -180,41 +180,85 @@ class PaymentService {
         throw new Error('Phone number required for M-Pesa');
       }
 
-      // TODO: Integrate with M-Pesa Daraja API
-      // const mpesa = require('mpesa-api');
-      // const stkPush = await mpesa.stkPush({...});
+      // Import M-Pesa service dynamically
+      const { mpesaService } = await import('./mpesaService');
 
-      // For STK Push, mark as pending verification
+      // Initiate STK Push
+      const stkResult = await mpesaService.initiateSTKPush(
+        request.phoneNumber,
+        request.amount,
+        transactionId,
+        request.description || 'NexaFya Payment',
+        `${import.meta.env.VITE_APP_URL || 'http://localhost:5174'}/api/mpesa/callback`
+      );
+
+      if (!stkResult.success) {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'FAILED',
+          error: stkResult.error || 'STK Push failed',
+          updatedAt: serverTimestamp(),
+        });
+        return {
+          success: false,
+          transactionId,
+          error: stkResult.error || 'Failed to initiate M-Pesa payment',
+        };
+      }
+
+      // Store checkout request ID for status polling
       await updateDoc(doc(firestore, 'transactions', transactionId), {
         status: 'STK_REQUESTED',
+        checkoutRequestId: stkResult.checkoutRequestId,
         stkRequestedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // Simulate STK push callback (in production, this comes from M-Pesa webhook)
-      setTimeout(async () => {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
-          status: 'COMPLETED',
-          referenceNumber: `MPESA-${Date.now()}`,
-          completedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }, 3000);
+      // Start polling for payment status
+      this.pollMPesaStatus(transactionId, stkResult.checkoutRequestId!);
 
       return {
         success: true,
         transactionId,
-        referenceNumber: `MPESA-${Date.now()}`,
-        message: 'STK Push sent to your phone. Complete payment to continue.',
+        message: stkResult.customerMessage || 'STK Push sent to your phone. Complete payment to continue.',
         requiresVerification: true,
       };
     } catch (error: any) {
+      console.error('M-Pesa processing error:', error);
       await updateDoc(doc(firestore, 'transactions', transactionId), {
         status: 'FAILED',
         error: error.message,
         updatedAt: serverTimestamp(),
       });
       throw error;
+    }
+  }
+
+  /**
+   * Poll M-Pesa payment status
+   */
+  private async pollMPesaStatus(transactionId: string, checkoutRequestId: string, attempts: number = 0) {
+    if (attempts >= 20) return; // Stop after 20 attempts (2 minutes)
+
+    try {
+      const { mpesaService } = await import('./mpesaService');
+      const result = await mpesaService.querySTKStatus(checkoutRequestId);
+
+      if (result.success && result.status === 'COMPLETED') {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'COMPLETED',
+          referenceNumber: `MPESA-${Date.now()}`,
+          completedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        return;
+      }
+
+      // Poll again after 6 seconds
+      setTimeout(() => {
+        this.pollMPesaStatus(transactionId, checkoutRequestId, attempts + 1);
+      }, 6000);
+    } catch (error) {
+      console.error('M-Pesa status polling error:', error);
     }
   }
 
@@ -230,20 +274,82 @@ class PaymentService {
         throw new Error('Phone number required for Tigo Pesa');
       }
 
-      // TODO: Integrate with Tigo Pesa API
+      // Import Tigo Pesa service dynamically
+      const { tigoPesaService } = await import('./tigoPesaService');
+
+      const paymentResult = await tigoPesaService.initiatePayment(
+        request.phoneNumber,
+        request.amount,
+        transactionId,
+        request.description || 'NexaFya Payment'
+      );
+
+      if (!paymentResult.success) {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'FAILED',
+          error: paymentResult.error || 'Payment initiation failed',
+          updatedAt: serverTimestamp(),
+        });
+        return {
+          success: false,
+          transactionId,
+          error: paymentResult.error || 'Failed to initiate Tigo Pesa payment',
+        };
+      }
+
       await updateDoc(doc(firestore, 'transactions', transactionId), {
         status: 'PENDING_VERIFICATION',
+        tigoTransactionId: paymentResult.transactionId,
         updatedAt: serverTimestamp(),
       });
+
+      // Start polling for payment status
+      if (paymentResult.transactionId) {
+        this.pollTigoPesaStatus(transactionId, paymentResult.transactionId);
+      }
 
       return {
         success: true,
         transactionId,
-        message: 'Payment pending verification. Please enter reference number.',
+        message: paymentResult.message || 'Payment request sent. Please complete on your phone.',
         requiresVerification: true,
       };
     } catch (error: any) {
+      console.error('Tigo Pesa processing error:', error);
+      await updateDoc(doc(firestore, 'transactions', transactionId), {
+        status: 'FAILED',
+        error: error.message,
+        updatedAt: serverTimestamp(),
+      });
       throw error;
+    }
+  }
+
+  /**
+   * Poll Tigo Pesa payment status
+   */
+  private async pollTigoPesaStatus(transactionId: string, tigoTransactionId: string, attempts: number = 0) {
+    if (attempts >= 20) return;
+
+    try {
+      const { tigoPesaService } = await import('./tigoPesaService');
+      const result = await tigoPesaService.queryPayment(tigoTransactionId);
+
+      if (result.success && result.status === 'COMPLETED') {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'COMPLETED',
+          referenceNumber: `TIGO-${Date.now()}`,
+          completedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        return;
+      }
+
+      setTimeout(() => {
+        this.pollTigoPesaStatus(transactionId, tigoTransactionId, attempts + 1);
+      }, 6000);
+    } catch (error) {
+      console.error('Tigo Pesa status polling error:', error);
     }
   }
 
@@ -259,20 +365,82 @@ class PaymentService {
         throw new Error('Phone number required for Airtel Money');
       }
 
-      // TODO: Integrate with Airtel Money API
+      // Import Airtel Money service dynamically
+      const { airtelMoneyService } = await import('./airtelMoneyService');
+
+      const paymentResult = await airtelMoneyService.initiatePayment(
+        request.phoneNumber,
+        request.amount,
+        transactionId,
+        request.description || 'NexaFya Payment'
+      );
+
+      if (!paymentResult.success) {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'FAILED',
+          error: paymentResult.error || 'Payment initiation failed',
+          updatedAt: serverTimestamp(),
+        });
+        return {
+          success: false,
+          transactionId,
+          error: paymentResult.error || 'Failed to initiate Airtel Money payment',
+        };
+      }
+
       await updateDoc(doc(firestore, 'transactions', transactionId), {
         status: 'PENDING_VERIFICATION',
+        airtelTransactionId: paymentResult.transactionId,
         updatedAt: serverTimestamp(),
       });
+
+      // Start polling for payment status
+      if (paymentResult.transactionId) {
+        this.pollAirtelMoneyStatus(transactionId, paymentResult.transactionId);
+      }
 
       return {
         success: true,
         transactionId,
-        message: 'Payment pending verification. Please enter reference number.',
+        message: paymentResult.message || 'Payment request sent. Please complete on your phone.',
         requiresVerification: true,
       };
     } catch (error: any) {
+      console.error('Airtel Money processing error:', error);
+      await updateDoc(doc(firestore, 'transactions', transactionId), {
+        status: 'FAILED',
+        error: error.message,
+        updatedAt: serverTimestamp(),
+      });
       throw error;
+    }
+  }
+
+  /**
+   * Poll Airtel Money payment status
+   */
+  private async pollAirtelMoneyStatus(transactionId: string, airtelTransactionId: string, attempts: number = 0) {
+    if (attempts >= 20) return;
+
+    try {
+      const { airtelMoneyService } = await import('./airtelMoneyService');
+      const result = await airtelMoneyService.queryPayment(airtelTransactionId);
+
+      if (result.success && result.status === 'COMPLETED') {
+        await updateDoc(doc(firestore, 'transactions', transactionId), {
+          status: 'COMPLETED',
+          referenceNumber: `AIRTEL-${Date.now()}`,
+          completedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        return;
+      }
+
+      setTimeout(() => {
+        this.pollAirtelMoneyStatus(transactionId, airtelTransactionId, attempts + 1);
+      }, 6000);
+    } catch (error) {
+      console.error('Airtel Money status polling error:', error);
     }
   }
 

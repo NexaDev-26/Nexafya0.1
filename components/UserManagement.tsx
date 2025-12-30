@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Edit2, Trash2, Shield, Ban, CheckCircle, X, Mail, Phone, MapPin, Calendar, Filter, Download } from 'lucide-react';
+import { Users, Search, Edit2, Trash2, Shield, Ban, CheckCircle, X, Mail, Phone, MapPin, Calendar, Filter, Download, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
 import { User, UserRole } from '../types';
-import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 
 export const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { notify } = useNotification();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<(User & { verificationStatus?: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'ALL'>('ALL');
@@ -29,10 +29,26 @@ export const UserManagement: React.FC = () => {
       const usersRef = collection(firestore, 'users');
       const q = query(usersRef, orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
-      const usersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as User[];
+      
+      // Load verification status for each user
+      const usersData = await Promise.all(
+        snapshot.docs.map(async (doc) => {
+          const userData = { id: doc.id, ...doc.data() } as User & { verificationStatus?: string };
+          
+          // Check verification status
+          const verificationQuery = query(
+            collection(firestore, 'userVerifications'),
+            where('userId', '==', doc.id)
+          );
+          const verificationSnapshot = await getDocs(verificationQuery);
+          if (!verificationSnapshot.empty) {
+            userData.verificationStatus = verificationSnapshot.docs[0].data().verificationStatus;
+          }
+          
+          return userData;
+        })
+      );
+      
       setUsers(usersData);
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -208,6 +224,7 @@ export const UserManagement: React.FC = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Verification</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
@@ -217,7 +234,7 @@ export const UserManagement: React.FC = () => {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                       No users found.
                     </td>
                   </tr>
@@ -239,6 +256,35 @@ export const UserManagement: React.FC = () => {
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${roleColors[user.role]}`}>
                           {user.role}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {user.role === UserRole.DOCTOR || user.role === UserRole.PHARMACY || user.role === UserRole.COURIER ? (
+                          <div className="flex items-center gap-2">
+                            {user.verificationStatus === 'Verified' ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                <ShieldCheck size={12} />
+                                Verified
+                              </span>
+                            ) : user.verificationStatus === 'Pending' || user.verificationStatus === 'Under Review' ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <AlertCircle size={12} />
+                                {user.verificationStatus}
+                              </span>
+                            ) : user.verificationStatus === 'Rejected' ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 flex items-center gap-1">
+                                <X size={12} />
+                                Rejected
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 flex items-center gap-1">
+                                <Shield size={12} />
+                                Unverified
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">

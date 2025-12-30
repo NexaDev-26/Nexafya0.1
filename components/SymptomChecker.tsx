@@ -81,38 +81,70 @@ export const SymptomChecker: React.FC = () => {
     }
 
     try {
+      setLoading(true);
       const lastAiMessage = messages.filter(m => m.role === 'model').pop();
       const userSymptoms = messages.filter(m => m.role === 'user').map(m => m.text).join('; ');
       
+      // Convert Date objects to Firestore-compatible format
+      const messagesData = messages.map(m => ({
+        role: m.role,
+        text: m.text,
+        timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+        assessment: m.assessment ? {
+          reply: m.assessment.reply,
+          careLevel: m.assessment.careLevel,
+          title: m.assessment.title,
+          action: m.assessment.action
+        } : null
+      }));
+
+      // Save symptom session
       await addDoc(collection(firestore, 'symptomSessions'), {
         userId: user.id,
         userName: user.name,
-        messages: messages.map(m => ({
-          role: m.role,
-          text: m.text,
-          timestamp: m.timestamp,
-          assessment: m.assessment
-        })),
-        finalAssessment: lastAiMessage?.assessment,
+        messages: messagesData,
+        finalAssessment: lastAiMessage?.assessment ? {
+          reply: lastAiMessage.assessment.reply,
+          careLevel: lastAiMessage.assessment.careLevel,
+          title: lastAiMessage.assessment.title,
+          action: lastAiMessage.assessment.action
+        } : null,
         summary: userSymptoms.substring(0, 200),
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
       // Also add to health records for long-term tracking
-      await addDoc(collection(firestore, 'healthRecords'), {
-        userId: user.id,
-        type: 'SYMPTOM_CHECK',
-        title: `AI Symptom Assessment - ${lastAiMessage?.assessment?.careLevel || 'General'}`,
-        description: userSymptoms,
-        assessment: lastAiMessage?.assessment,
-        recordedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
-      });
+      if (lastAiMessage?.assessment) {
+        await addDoc(collection(firestore, 'healthRecords'), {
+          userId: user.id,
+          patientId: user.id, // Add patientId for compatibility
+          type: 'SYMPTOM_CHECK',
+          title: `AI Symptom Assessment - ${lastAiMessage.assessment.careLevel || 'General'}`,
+          description: userSymptoms,
+          assessment: {
+            reply: lastAiMessage.assessment.reply,
+            careLevel: lastAiMessage.assessment.careLevel,
+            title: lastAiMessage.assessment.title,
+            action: lastAiMessage.assessment.action
+          },
+          recordedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          status: 'Active'
+        });
+      }
 
       notify('Symptom check saved to your health history!', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save session:', error);
-      notify('Failed to save session', 'error');
+      console.error('Error details:', {
+        code: error?.code,
+        message: error?.message,
+        userId: user?.id
+      });
+      notify(`Failed to save session: ${error?.message || 'Unknown error'}`, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 

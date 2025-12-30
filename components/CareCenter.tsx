@@ -5,6 +5,8 @@ import { Bot, Stethoscope, TestTube, MapPin, Calendar, Clock, ChevronRight, X, U
 import { useNotification } from './NotificationSystem';
 import { Appointment, User, Doctor, UserRole } from '../types';
 import { db } from '../services/db';
+import { addSampleDoctors } from '../utils/addSampleDoctors';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CareCenterProps {
     initialTab?: 'ai' | 'doctors' | 'labs';
@@ -15,6 +17,7 @@ interface CareCenterProps {
 export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBookAppointment, user }) => {
   const [activeTab, setActiveTab] = useState<'ai' | 'doctors' | 'labs'>(initialTab);
   const { notify } = useNotification();
+  const { user: currentUser } = useAuth();
 
   // Booking Modal State (Shared)
   const [bookingItem, setBookingItem] = useState<any | null>(null);
@@ -38,15 +41,20 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
   useEffect(() => {
       const loadDoctors = async () => {
           try {
+              console.log('Loading doctors...');
               const data = await db.getDoctors();
+              console.log('Doctors loaded:', data.length, data);
               setDoctors(data);
+              if (data.length === 0) {
+                  console.warn('No doctors found in database. Make sure to run the setup script or add doctors manually.');
+              }
           } catch (error) {
-              console.error(error);
-              notify("Failed to load specialists.", "error");
+              console.error('Error loading doctors:', error);
+              notify("Failed to load specialists. Please check console for details.", "error");
           }
       };
       loadDoctors();
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
       const loadReviews = async () => {
@@ -171,12 +179,20 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                       <div className="pt-20 px-8 pb-8">
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
                               <div>
-                                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
                                       {selectedDoctor.name}
-                                      <CheckCircle size={20} className="text-blue-500" fill="currentColor" color="white" />
+                                      {selectedDoctor.isTrusted && (
+                                          <CheckCircle size={20} className="text-blue-500" fill="currentColor" color="white" title="Verified Doctor" />
+                                      )}
+                                      {selectedDoctor.verificationStatus === 'Verified' && (
+                                          <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full">Verified</span>
+                                      )}
                                   </h2>
-                                  <p className="text-lg text-gray-500 dark:text-gray-300 font-medium">{selectedDoctor.specialty} • {selectedDoctor.experience} Years Exp.</p>
-                                  <div className="flex items-center gap-4 mt-2">
+                                  <p className="text-lg text-gray-500 dark:text-gray-300 font-medium flex items-center gap-2">
+                                      <Stethoscope size={18} />
+                                      {selectedDoctor.specialty} • {selectedDoctor.experience} Years Experience
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2 flex-wrap">
                                       <div className="flex items-center gap-1 text-amber-500 font-bold text-sm">
                                           <Star size={16} fill="currentColor" /> {selectedDoctor.rating.toFixed(1)} ({reviews.length} {reviews.length === 1 ? 'Review' : 'Reviews'})
                                       </div>
@@ -184,6 +200,14 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                                       <div className="text-sm text-gray-500 flex items-center gap-1">
                                           <MapPin size={16} /> {selectedDoctor.location}
                                       </div>
+                                      {selectedDoctor.workplace && (
+                                          <>
+                                              <span className="text-gray-300">•</span>
+                                              <div className="text-sm text-gray-500 flex items-center gap-1">
+                                                  <MapPin size={16} /> {selectedDoctor.workplace}
+                                              </div>
+                                          </>
+                                      )}
                                   </div>
                                   {selectedDoctor.bio && (
                                       <p className="text-gray-600 dark:text-gray-300 text-sm mt-4 leading-relaxed max-w-2xl">{selectedDoctor.bio}</p>
@@ -203,9 +227,43 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                               <div className="md:col-span-2 space-y-8">
                                   <div>
                                       <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-3">About Doctor</h3>
-                                      <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+                                      <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
                                           {selectedDoctor.bio || `Dr. ${selectedDoctor.name.split(' ')[1] || selectedDoctor.name} is a distinguished ${selectedDoctor.specialty} with over ${selectedDoctor.experience} years of experience in top medical institutions. Dedicated to providing comprehensive care with a focus on patient well-being and preventive medicine.`}
                                       </p>
+                                      
+                                      {/* Professional Details */}
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                          {selectedDoctor.workplace && (
+                                              <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-1">Workplace</p>
+                                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedDoctor.workplace}</p>
+                                              </div>
+                                          )}
+                                          {selectedDoctor.medicalLicenseNumber && (
+                                              <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-1">License Number</p>
+                                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedDoctor.medicalLicenseNumber}</p>
+                                              </div>
+                                          )}
+                                          {selectedDoctor.medicalCouncilRegistration && (
+                                              <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-1">Council Registration</p>
+                                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedDoctor.medicalCouncilRegistration}</p>
+                                              </div>
+                                          )}
+                                          {selectedDoctor.verificationStatus && (
+                                              <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
+                                                  <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase mb-1">Verification Status</p>
+                                                  <p className={`text-sm font-medium ${
+                                                      selectedDoctor.verificationStatus === 'Verified' ? 'text-emerald-600 dark:text-emerald-400' :
+                                                      selectedDoctor.verificationStatus === 'Pending' ? 'text-amber-600 dark:text-amber-400' :
+                                                      'text-gray-600 dark:text-gray-400'
+                                                  }`}>
+                                                      {selectedDoctor.verificationStatus}
+                                                  </p>
+                                              </div>
+                                          )}
+                                      </div>
                                   </div>
 
                                   <div>
@@ -388,30 +446,81 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
               </div>
 
               {doctors.length === 0 ? (
-                  <div className="text-center py-20 text-gray-500">
-                      <p>Loading specialists...</p>
+                  <div className="text-center py-20">
+                      <Stethoscope className="mx-auto mb-4 text-gray-400" size={48} />
+                      <p className="text-gray-500 dark:text-gray-400 font-bold">No specialists found</p>
+                      <p className="text-sm text-gray-400 mt-2 mb-4">No doctors are available in the database yet.</p>
+                      {(currentUser?.role === UserRole.ADMIN) && (
+                          <button
+                              onClick={async () => {
+                                  notify('Adding sample doctors...', 'info');
+                                  const result = await addSampleDoctors();
+                                  if (result.success) {
+                                      notify(result.message, 'success');
+                                      // Reload doctors
+                                      const data = await db.getDoctors();
+                                      setDoctors(data);
+                                  } else {
+                                      notify(result.message, 'error');
+                                  }
+                              }}
+                              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
+                          >
+                              Add Sample Doctors
+                          </button>
+                      )}
+                  </div>
+              ) : filteredDoctors.length === 0 ? (
+                  <div className="text-center py-20">
+                      <Search className="mx-auto mb-4 text-gray-400" size={48} />
+                      <p className="text-gray-500 dark:text-gray-400 font-bold">No doctors match your search</p>
+                      <p className="text-sm text-gray-400 mt-2">Try different keywords or clear filters</p>
                   </div>
               ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {filteredDoctors.map((doc) => (
                           <div key={doc.id} onClick={() => setSelectedDoctor(doc)} className="bg-white dark:bg-[#0F172A] rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:scale-[1.02] transition-all cursor-pointer group flex flex-col">
                               <div className="flex items-start justify-between mb-4">
-                                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700">
-                                      <img src={doc.avatar} alt={doc.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                                      {doc.avatar ? (
+                                          <img src={doc.avatar} alt={doc.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              const parent = target.parentElement;
+                                              if (parent) {
+                                                  parent.innerHTML = `<span class="text-white font-bold text-xl">${doc.name.charAt(0)}</span>`;
+                                              }
+                                          }} />
+                                      ) : (
+                                          <span className="text-white font-bold text-xl">{doc.name.charAt(0)}</span>
+                                      )}
                                   </div>
-                                  <div className="flex flex-col items-end">
+                                  <div className="flex flex-col items-end gap-1">
                                       <span className="flex items-center gap-1 text-amber-500 font-bold text-sm bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-lg">
-                                          <Star size={12} fill="currentColor" /> {doc.rating}
+                                          <Star size={12} fill="currentColor" /> {doc.rating.toFixed(1)}
                                       </span>
-                                      <span className="text-xs text-gray-400 mt-1">{doc.experience}y exp</span>
+                                      <span className="text-xs text-gray-400 font-medium">{doc.experience}y exp</span>
+                                      {doc.isTrusted && (
+                                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">Verified</span>
+                                      )}
                                   </div>
                               </div>
                               
                               <h4 className="font-bold text-lg text-gray-900 dark:text-white leading-tight mb-1">{doc.name}</h4>
-                              <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2">{doc.specialty} • {doc.location}</p>
+                              <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2 flex items-center gap-1">
+                                  <Stethoscope size={14} />
+                                  {doc.specialty} • {doc.location}
+                              </p>
                               
                               {doc.bio && (
                                   <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 line-clamp-2 leading-relaxed">{doc.bio}</p>
+                              )}
+
+                              {doc.workplace && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2 flex items-center gap-1">
+                                      <MapPin size={12} />
+                                      {doc.workplace}
+                                  </p>
                               )}
 
                               <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">

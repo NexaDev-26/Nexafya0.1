@@ -34,6 +34,12 @@ export interface Doctor extends User {
   isTrusted?: boolean; // Whether doctor is trusted/verified
   canVerifyArticles?: boolean; // Whether doctor can verify other doctors' articles
   bio?: string;
+  // Verification fields
+  verificationStatus?: 'Unverified' | 'Pending' | 'Under Review' | 'Verified' | 'Rejected' | 'Suspended';
+  medicalLicenseNumber?: string;
+  medicalCouncilRegistration?: string;
+  workplace?: string;
+  yearsOfExperience?: number;
 }
 
 export interface Appointment {
@@ -194,6 +200,12 @@ export interface Courier {
   rating: number;
   trustTier?: 'Basic' | 'Premium' | 'VIP'; // Trust tier assigned by admin
   isTrusted?: boolean; // Whether courier is trusted/verified
+  // Verification fields
+  verificationStatus?: 'Unverified' | 'Pending' | 'Under Review' | 'Verified' | 'Rejected' | 'Suspended';
+  nationalIdNumber?: string;
+  drivingLicenseNumber?: string;
+  vehicleRegistrationNumber?: string;
+  backgroundCheckStatus?: 'Pending' | 'Passed' | 'Failed';
 }
 
 export interface HouseholdVisit {
@@ -231,11 +243,39 @@ export interface DoctorPaymentDetail {
 
 export interface VerificationDocument {
   id: string;
-  type: 'License' | 'National ID' | 'Certificate';
+  userId: string;
+  userRole: UserRole;
+  type: 'Medical License' | 'Pharmacy License' | 'National ID' | 'Professional Certificate' | 'Business Registration' | 'Driving License' | 'Background Check';
   name: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  documentNumber?: string; // License number, ID number, etc.
+  issuingAuthority?: string; // e.g., "Tanzania Medical Council", "Tanzania Pharmacy Board"
+  issueDate?: string;
+  expiryDate?: string;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  status: 'Pending' | 'Under Review' | 'Approved' | 'Rejected' | 'Expired';
   uploadDate: string;
+  reviewedBy?: string; // Admin ID who reviewed
+  reviewedAt?: string;
   rejectionReason?: string;
+  notes?: string; // Admin notes
+}
+
+export interface UserVerification {
+  userId: string;
+  userRole: UserRole;
+  verificationStatus: 'Unverified' | 'Pending' | 'Under Review' | 'Verified' | 'Rejected' | 'Suspended';
+  verificationLevel: 'Basic' | 'Standard' | 'Premium'; // Based on documents submitted
+  documents: VerificationDocument[];
+  requiredDocuments: string[]; // Types of documents required for this role
+  submittedAt?: string;
+  verifiedAt?: string;
+  verifiedBy?: string; // Admin ID
+  rejectionReason?: string;
+  nextReviewDate?: string; // For periodic re-verification
+  isActive: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Partner {
@@ -297,6 +337,12 @@ export interface PharmacyProfile {
   phone: string;
   email: string;
   logo?: string;
+  // Verification fields
+  verificationStatus?: 'Unverified' | 'Pending' | 'Under Review' | 'Verified' | 'Rejected' | 'Suspended';
+  pharmacyBoardRegistration?: string;
+  businessRegistrationNumber?: string;
+  ownerName?: string;
+  ownerNationalId?: string;
   subscription: {
       plan: string;
       status: string;
