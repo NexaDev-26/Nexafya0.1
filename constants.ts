@@ -230,3 +230,40 @@ export const PATIENT_VITALS = [
 export const HEALTH_TIPS = [
     { id: 't1', title: 'Daily Health Tips To Strengthen Your Immune System', author: 'Dr. Michael', image: 'https://picsum.photos/200/200?random=50' },
 ];
+
+export const SUBSCRIPTION_PACKAGES: SubscriptionPackage[] = [
+  {
+    id: 'basic',
+    role: 'PHARMACY',
+    name: 'Basic Plan',
+    price: '50,000',
+    description: 'Essential features for small pharmacies',
+    features: ['Basic inventory management', 'Order processing', 'Customer management'],
+    allowedMethods: ['mpesa', 'tigo'],
+    currency: 'TZS',
+    period: 'monthly'
+  },
+  {
+    id: 'professional',
+    role: 'PHARMACY',
+    name: 'Professional Plan',
+    price: '150,000',
+    description: 'Advanced features for growing pharmacies',
+    features: ['Advanced inventory', 'Multi-branch support', 'Analytics', 'Priority support'],
+    allowedMethods: ['mpesa', 'tigo', 'airtel'],
+    isPopular: true,
+    currency: 'TZS',
+    period: 'monthly'
+  },
+  {
+    id: 'enterprise',
+    role: 'PHARMACY',
+    name: 'Enterprise Plan',
+    price: '300,000',
+    description: 'Complete solution for large pharmacy chains',
+    features: ['Unlimited branches', 'Custom integrations', 'Dedicated support', 'API access'],
+    allowedMethods: ['mpesa', 'tigo', 'airtel', 'nhif'],
+    currency: 'TZS',
+    period: 'monthly'
+  }
+];
