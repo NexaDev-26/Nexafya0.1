@@ -157,7 +157,7 @@ export const PurchaseManagement: React.FC = () => {
       };
 
       if (editingPurchase) {
-        await db.updatePurchase?.(purchaseData);
+        await db.updatePurchase(editingPurchase.id, purchaseData);
         notify('Purchase order updated successfully', 'success');
       } else {
         await db.createPurchase?.(purchaseData);
@@ -216,7 +216,7 @@ export const PurchaseManagement: React.FC = () => {
         status: 'RECEIVED',
         receivedDate: new Date().toISOString(),
       };
-      await db.updatePurchase?.(updatedPurchase);
+      await db.updatePurchase(updatedPurchase.id, updatedPurchase);
       
       // Update inventory
       for (const item of purchase.items) {

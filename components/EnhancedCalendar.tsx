@@ -12,7 +12,7 @@ import {
   Search,
   X
 } from 'lucide-react';
-import { Appointment } from '../types';
+import { Appointment, UserRole } from '../types';
 import { db } from '../services/db';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,7 +41,7 @@ export const EnhancedCalendar: React.FC = () => {
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const data = await db.getAppointments(user?.id || '', user?.role || 'PATIENT');
+      const data = await db.getAppointments(user?.id || '', (user?.role || UserRole.PATIENT) as UserRole);
       setAppointments(data);
     } catch (error) {
       handleError(error, notify);

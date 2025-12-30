@@ -58,7 +58,7 @@ export interface Translations {
   deliveries: string;
   routeMap: string;
   deliveryStatus: string;
-  earnings: string;
+  courierEarnings: string;
   
   // Admin Dashboard
   revenue: string;
@@ -174,7 +174,7 @@ const translations: Record<Language, Translations> = {
     deliveries: 'Deliveries',
     routeMap: 'Route Map',
     deliveryStatus: 'Delivery Status',
-    earnings: 'Earnings',
+    courierEarnings: 'Earnings',
     
     // Admin Dashboard
     revenue: 'Revenue',
@@ -288,7 +288,7 @@ const translations: Record<Language, Translations> = {
     deliveries: 'Uwasilishaji',
     routeMap: 'Ramani ya Njia',
     deliveryStatus: 'Hali ya Uwasilishaji',
-    earnings: 'Mapato',
+    courierEarnings: 'Mapato',
     
     // Admin Dashboard
     revenue: 'Mapato',

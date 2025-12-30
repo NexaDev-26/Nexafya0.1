@@ -23,6 +23,9 @@ import { handleError } from '../utils/errorHandler';
 import { ProgressBar } from './ProgressBar';
 
 interface EnhancedMedicationSchedule extends MedicationSchedule {
+  frequency?: string;
+  color?: 'blue' | 'green' | 'orange' | 'purple';
+  notes?: string;
   adherenceRate?: number;
   streak?: number;
   nextDose?: Date;
@@ -133,7 +136,7 @@ export const MedicationReminderEnhanced: React.FC = () => {
 
   const handleMarkTaken = async (id: string) => {
     try {
-      await db.markMedicationTaken?.(id);
+      await db.markMedicationTaken(id, new Date().toISOString().split('T')[0]);
       notify('Medication marked as taken!', 'success');
       loadMedications();
     } catch (error) {
@@ -143,7 +146,7 @@ export const MedicationReminderEnhanced: React.FC = () => {
 
   const handleSkip = async (id: string) => {
     try {
-      await db.skipMedicationDose?.(id);
+      await db.skipMedicationDose(id, new Date().toISOString().split('T')[0]);
       notify('Dose skipped', 'info');
       loadMedications();
     } catch (error) {
@@ -158,7 +161,7 @@ export const MedicationReminderEnhanced: React.FC = () => {
     }
 
     try {
-      const medicationData: MedicationSchedule = {
+      const medicationData: EnhancedMedicationSchedule = {
         id: editingMedication?.id || Date.now().toString(),
         name: formData.name,
         dosage: formData.dosage,
@@ -166,13 +169,15 @@ export const MedicationReminderEnhanced: React.FC = () => {
         time: formData.time,
         taken: false,
         patientName: user?.name || '',
+        color: (formData as any).color || 'blue',
+        notes: (formData as any).notes || '',
       };
 
       if (editingMedication) {
-        await db.updateMedicationSchedule?.(medicationData);
+        await db.updateMedicationSchedule(editingMedication.id, medicationData);
         notify('Medication updated successfully', 'success');
       } else {
-        await db.createMedicationSchedule?.(medicationData);
+        await db.createMedicationSchedule(medicationData);
         notify('Medication added successfully', 'success');
       }
 
@@ -399,7 +404,7 @@ export const MedicationReminderEnhanced: React.FC = () => {
                               current={med.adherenceRate}
                               total={100}
                               showLabel={false}
-                              color={med.adherenceRate >= 80 ? 'green' : med.adherenceRate >= 60 ? 'orange' : 'red'}
+                              color={med.adherenceRate >= 80 ? 'green' : med.adherenceRate >= 60 ? 'orange' : 'purple'}
                               className="w-24"
                             />
                             <span className="text-xs font-bold text-gray-900 dark:text-white">
@@ -456,7 +461,7 @@ export const MedicationReminderEnhanced: React.FC = () => {
                     <button
                       onClick={async () => {
                         try {
-                          await db.deleteMedicationSchedule?.(med.id);
+                          await db.deleteMedicationSchedule(med.id);
                           notify('Medication removed', 'success');
                           loadMedications();
                         } catch (error) {

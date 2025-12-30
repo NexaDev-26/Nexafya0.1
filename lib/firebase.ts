@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
   try {
     // Try new API first
     db = initializeFirestore(app, {
-      cache: persistentLocalCache(),
+      localCache: persistentLocalCache(),
     }, 'nexafyadb');
   } catch (error: any) {
     // If already initialized or fails, fallback to regular initialization

@@ -84,11 +84,36 @@ export const firebaseDb = {
     }
   },
 
-  getDoctorDetails: async (doctorId: string) => {
+  getDoctorDetails: async (doctorId: string): Promise<Doctor | null> => {
     try {
       const docRef = doc(firestore, 'doctors', doctorId);
       const docSnap = await getDoc(docRef);
-      return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+      if (!docSnap.exists()) return null;
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        name: data.name || 'Doctor',
+        role: UserRole.DOCTOR,
+        avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'Doctor')}&background=random&size=200`,
+        email: data.email || '',
+        phone: data.phone || '',
+        location: data.location || 'Tanzania',
+        points: data.points || 0,
+        specialty: data.specialty || 'General Practitioner',
+        rating: Number(data.rating) || 5.0,
+        price: data.consultationFee || data.consultation_fee || data.price || 0,
+        experience: data.experienceYears || data.experience_years || data.experience || 0,
+        availability: data.availability || [],
+        trustTier: data.trustTier || undefined,
+        isTrusted: data.isTrusted || false,
+        canVerifyArticles: data.canVerifyArticles || false,
+        bio: data.bio || '',
+        workplace: data.workplace || '',
+        verificationStatus: data.verificationStatus || undefined,
+        medicalLicenseNumber: data.medicalLicenseNumber || undefined,
+        medicalCouncilRegistration: data.medicalCouncilRegistration || undefined,
+        yearsOfExperience: data.yearsOfExperience || undefined
+      } as Doctor;
     } catch (e) {
       console.error("DB: Failed to fetch doctor details", e);
       return null;
@@ -274,7 +299,7 @@ export const firebaseDb = {
             notes: data.notes || '',
             patientId: data.patientId || '',
             doctorId: data.doctorId || ''
-          };
+          } as Appointment;
         } catch (err) {
           console.error('Error mapping appointment:', err);
           return null;
@@ -438,7 +463,7 @@ export const firebaseDb = {
             currency: data.currency || 'TZS',
             status: data.status || 'published',
             highlights: data.highlights || ''
-          };
+          } as Article;
         } catch (err) {
           console.error('Error mapping article:', err);
           return null;
@@ -620,7 +645,7 @@ export const firebaseDb = {
     }
   },
 
-  verifyPrescription: async (qrCode: string) => {
+  verifyPrescription: async (qrCode: string): Promise<any | null> => {
     try {
       const prescriptionsRef = firestoreCollection(firestore, 'prescriptions');
       const q = query(prescriptionsRef, where('qrCode', '==', qrCode), limit(1));
@@ -629,7 +654,29 @@ export const firebaseDb = {
       if (querySnapshot.empty) return null;
       
       const doc = querySnapshot.docs[0];
-      return { id: doc.id, ...doc.data() };
+      const data = doc.data();
+      return {
+        id: doc.id,
+        patientId: data.patientId || '',
+        patientName: data.patientName || '',
+        doctorId: data.doctorId,
+        doctorName: data.doctorName,
+        appointmentId: data.appointmentId,
+        items: data.items || [],
+        status: data.status || 'ISSUED',
+        pharmacyId: data.pharmacyId,
+        pharmacyName: data.pharmacyName,
+        qrCode: data.qrCode || data.qr_code,
+        qrCodeUrl: data.qrCodeUrl,
+        notes: data.notes,
+        issuedAt: data.issuedAt,
+        lockedAt: data.lockedAt,
+        dispensedAt: data.dispensedAt,
+        expiresAt: data.expiresAt,
+        createdAt: data.createdAt,
+        isExternal: data.isExternal,
+        externalFileUrl: data.externalFileUrl
+      } as any;
     } catch (e) {
       console.error("Verify prescription error", e);
       return null;
@@ -717,7 +764,7 @@ export const firebaseDb = {
             maternal_status: data.maternal_status || undefined,
             location_lat: Number(data.location_lat) || undefined,
             location_lng: Number(data.location_lng) || undefined
-          };
+          } as HouseholdVisit;
         } catch (err) {
           console.error('Error mapping household visit:', err);
           return null;
@@ -960,12 +1007,32 @@ export const firebaseDb = {
       // Get all users
       const usersRef = firestoreCollection(firestore, 'users');
       const usersSnap = await getDocs(usersRef);
-      const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allUsers = usersSnap.docs.map(d => {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          ...data,
+          isActive: data.isActive !== false,
+          role: data.role || 'PATIENT',
+          createdAt: data.createdAt || data.created_at || null
+        };
+      });
       
       // Get all transactions
       const transactionsRef = firestoreCollection(firestore, 'transactions');
       const transactionsSnap = await getDocs(transactionsRef);
-      const allTransactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allTransactions = transactionsSnap.docs.map(d => {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          ...data,
+          status: data.status || 'PENDING',
+          amount: Number(data.amount) || 0,
+          itemType: data.itemType || data.type || 'CONSULTATION',
+          type: data.type || 'CONSULTATION',
+          createdAt: data.createdAt || data.created_at || null
+        };
+      });
       
       // Get all doctors
       const doctorsRef = firestoreCollection(firestore, 'doctors');
@@ -1008,7 +1075,7 @@ export const firebaseDb = {
       }).length;
       
       const recentRevenue = verifiedTransactions.filter(t => {
-        const createdAt = t.createdAt?.toDate ? t.createdAt.toDate() : new Date(t.created_at || t.createdAt);
+        const createdAt = t.createdAt?.toDate ? t.createdAt.toDate() : new Date((t as any).created_at || t.createdAt);
         return createdAt >= thirtyDaysAgo;
       }).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       
@@ -1267,8 +1334,413 @@ export const firebaseDb = {
       return [];
     }
   },
+
+  // --- BATCH MANAGEMENT ---
+  getBatches: async (): Promise<any[]> => {
+    try {
+      const batchesRef = firestoreCollection(firestore, 'medicineBatches');
+      const snapshot = await getDocs(batchesRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch batches", e);
+      return [];
+    }
+  },
+
+  addBatch: async (batch: any): Promise<string> => {
+    try {
+      const batchesRef = firestoreCollection(firestore, 'medicineBatches');
+      const docRef = await addDoc(batchesRef, cleanFirestoreData(batch));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to add batch", e);
+      throw e;
+    }
+  },
+
+  updateBatch: async (batchId: string, updates: any): Promise<void> => {
+    try {
+      const batchRef = doc(firestore, 'medicineBatches', batchId);
+      await updateDoc(batchRef, cleanFirestoreData(updates));
+    } catch (e) {
+      console.error("DB: Failed to update batch", e);
+      throw e;
+    }
+  },
+
+  deleteBatch: async (batchId: string): Promise<void> => {
+    try {
+      const batchRef = doc(firestore, 'medicineBatches', batchId);
+      await deleteDoc(batchRef);
+    } catch (e) {
+      console.error("DB: Failed to delete batch", e);
+      throw e;
+    }
+  },
+
+  // --- PRESCRIPTIONS ---
+  getPrescriptions: async (patientId?: string, doctorId?: string): Promise<any[]> => {
+    try {
+      const prescriptionsRef = firestoreCollection(firestore, 'prescriptions');
+      let q = query(prescriptionsRef, orderBy('createdAt', 'desc'));
+      if (patientId) q = query(q, where('patientId', '==', patientId));
+      if (doctorId) q = query(q, where('doctorId', '==', doctorId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch prescriptions", e);
+      return [];
+    }
+  },
+
+  createPrescription: async (prescription: any): Promise<string> => {
+    try {
+      const prescriptionsRef = firestoreCollection(firestore, 'prescriptions');
+      const docRef = await addDoc(prescriptionsRef, cleanFirestoreData({
+        ...prescription,
+        createdAt: serverTimestamp()
+      }));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create prescription", e);
+      throw e;
+    }
+  },
+
+  updatePrescription: async (prescriptionId: string, updates: any): Promise<void> => {
+    try {
+      const prescriptionRef = doc(firestore, 'prescriptions', prescriptionId);
+      await updateDoc(prescriptionRef, cleanFirestoreData({
+        ...updates,
+        updatedAt: serverTimestamp()
+      }));
+    } catch (e) {
+      console.error("DB: Failed to update prescription", e);
+      throw e;
+    }
+  },
+
+  // --- FAMILY MEMBERS ---
+  getFamilyMembers: async (userId: string): Promise<any[]> => {
+    try {
+      const membersRef = firestoreCollection(firestore, 'familyMembers');
+      const q = query(membersRef, where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch family members", e);
+      return [];
+    }
+  },
+
+  // --- MEDICATION SCHEDULES ---
+  getMedicationSchedules: async (patientId: string): Promise<any[]> => {
+    try {
+      const schedulesRef = firestoreCollection(firestore, 'medicationSchedules');
+      const q = query(schedulesRef, where('patientId', '==', patientId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch medication schedules", e);
+      return [];
+    }
+  },
+
+  createMedicationSchedule: async (schedule: any): Promise<string> => {
+    try {
+      const schedulesRef = firestoreCollection(firestore, 'medicationSchedules');
+      const docRef = await addDoc(schedulesRef, cleanFirestoreData(schedule));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create medication schedule", e);
+      throw e;
+    }
+  },
+
+  updateMedicationSchedule: async (scheduleId: string, updates: any): Promise<void> => {
+    try {
+      const scheduleRef = doc(firestore, 'medicationSchedules', scheduleId);
+      await updateDoc(scheduleRef, cleanFirestoreData(updates));
+    } catch (e) {
+      console.error("DB: Failed to update medication schedule", e);
+      throw e;
+    }
+  },
+
+  deleteMedicationSchedule: async (scheduleId: string): Promise<void> => {
+    try {
+      const scheduleRef = doc(firestore, 'medicationSchedules', scheduleId);
+      await deleteDoc(scheduleRef);
+    } catch (e) {
+      console.error("DB: Failed to delete medication schedule", e);
+      throw e;
+    }
+  },
+
+  markMedicationTaken: async (scheduleId: string, date: string): Promise<void> => {
+    try {
+      const scheduleRef = doc(firestore, 'medicationSchedules', scheduleId);
+      await updateDoc(scheduleRef, cleanFirestoreData({
+        [`taken_${date}`]: true,
+        lastTaken: serverTimestamp()
+      }));
+    } catch (e) {
+      console.error("DB: Failed to mark medication taken", e);
+      throw e;
+    }
+  },
+
+  skipMedicationDose: async (scheduleId: string, date: string): Promise<void> => {
+    try {
+      const scheduleRef = doc(firestore, 'medicationSchedules', scheduleId);
+      await updateDoc(scheduleRef, cleanFirestoreData({
+        [`skipped_${date}`]: true
+      }));
+    } catch (e) {
+      console.error("DB: Failed to skip medication dose", e);
+      throw e;
+    }
+  },
+
+  // --- HEALTH METRICS ---
+  getHealthMetrics: async (patientId: string): Promise<any[]> => {
+    try {
+      const metricsRef = firestoreCollection(firestore, 'healthMetrics');
+      const q = query(metricsRef, where('patient_id', '==', patientId), orderBy('recorded_at', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch health metrics", e);
+      return [];
+    }
+  },
+
+  // --- SUPPLIERS ---
+  getSuppliers: async (): Promise<any[]> => {
+    try {
+      const suppliersRef = firestoreCollection(firestore, 'suppliers');
+      const snapshot = await getDocs(suppliersRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch suppliers", e);
+      return [];
+    }
+  },
+
+  createSupplier: async (supplier: any): Promise<string> => {
+    try {
+      const suppliersRef = firestoreCollection(firestore, 'suppliers');
+      const docRef = await addDoc(suppliersRef, cleanFirestoreData(supplier));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create supplier", e);
+      throw e;
+    }
+  },
+
+  updateSupplier: async (supplierId: string, updates: any): Promise<void> => {
+    try {
+      const supplierRef = doc(firestore, 'suppliers', supplierId);
+      await updateDoc(supplierRef, cleanFirestoreData(updates));
+    } catch (e) {
+      console.error("DB: Failed to update supplier", e);
+      throw e;
+    }
+  },
+
+  deleteSupplier: async (supplierId: string): Promise<void> => {
+    try {
+      const supplierRef = doc(firestore, 'suppliers', supplierId);
+      await deleteDoc(supplierRef);
+    } catch (e) {
+      console.error("DB: Failed to delete supplier", e);
+      throw e;
+    }
+  },
+
+  // --- PURCHASES ---
+  getPurchases: async (): Promise<any[]> => {
+    try {
+      const purchasesRef = firestoreCollection(firestore, 'purchases');
+      const snapshot = await getDocs(query(purchasesRef, orderBy('date', 'desc')));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch purchases", e);
+      return [];
+    }
+  },
+
+  createPurchase: async (purchase: any): Promise<string> => {
+    try {
+      const purchasesRef = firestoreCollection(firestore, 'purchases');
+      const docRef = await addDoc(purchasesRef, cleanFirestoreData(purchase));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create purchase", e);
+      throw e;
+    }
+  },
+
+  updatePurchase: async (purchaseId: string, updates: any): Promise<void> => {
+    try {
+      const purchaseRef = doc(firestore, 'purchases', purchaseId);
+      await updateDoc(purchaseRef, cleanFirestoreData(updates));
+    } catch (e) {
+      console.error("DB: Failed to update purchase", e);
+      throw e;
+    }
+  },
+
+  deletePurchase: async (purchaseId: string): Promise<void> => {
+    try {
+      const purchaseRef = doc(firestore, 'purchases', purchaseId);
+      await deleteDoc(purchaseRef);
+    } catch (e) {
+      console.error("DB: Failed to delete purchase", e);
+      throw e;
+    }
+  },
+
+  updateMedicineStock: async (medicineId: string, quantityChange: number): Promise<void> => {
+    try {
+      const medicineRef = doc(firestore, 'medicines', medicineId);
+      await updateDoc(medicineRef, {
+        stock: increment(quantityChange)
+      });
+    } catch (e) {
+      console.error("DB: Failed to update medicine stock", e);
+      throw e;
+    }
+  },
+
+  // --- REPORTS ---
+  getSalesReport: async (startDate?: string, endDate?: string): Promise<any> => {
+    try {
+      const transactionsRef = firestoreCollection(firestore, 'transactions');
+      let q = query(transactionsRef, where('type', '==', 'PHARMACY_SALE'));
+      if (startDate) q = query(q, where('createdAt', '>=', new Date(startDate)));
+      if (endDate) q = query(q, where('createdAt', '<=', new Date(endDate)));
+      const snapshot = await getDocs(q);
+      const sales = snapshot.docs.map(doc => doc.data());
+      return {
+        totalSales: sales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0),
+        count: sales.length,
+        sales
+      };
+    } catch (e) {
+      console.error("DB: Failed to fetch sales report", e);
+      return { totalSales: 0, count: 0, sales: [] };
+    }
+  },
+
+  getPurchasesReport: async (startDate?: string, endDate?: string): Promise<any> => {
+    try {
+      const purchasesRef = firestoreCollection(firestore, 'purchases');
+      let q = query(purchasesRef);
+      if (startDate) q = query(q, where('date', '>=', startDate));
+      if (endDate) q = query(q, where('date', '<=', endDate));
+      const snapshot = await getDocs(q);
+      const purchases = snapshot.docs.map(doc => doc.data());
+      return {
+        totalPurchases: purchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0),
+        count: purchases.length,
+        purchases
+      };
+    } catch (e) {
+      console.error("DB: Failed to fetch purchases report", e);
+      return { totalPurchases: 0, count: 0, purchases: [] };
+    }
+  },
+
+  getInventoryReport: async (): Promise<any> => {
+    try {
+      const medicinesRef = firestoreCollection(firestore, 'medicines');
+      const snapshot = await getDocs(medicinesRef);
+      const medicines = snapshot.docs.map(doc => doc.data());
+      const totalValue = medicines.reduce((sum, m) => sum + ((Number(m.stock) || 0) * (Number(m.price) || 0)), 0);
+      const lowStock = medicines.filter(m => (Number(m.stock) || 0) < (Number(m.reorderLevel) || 10));
+      return {
+        totalItems: medicines.length,
+        totalValue,
+        lowStockCount: lowStock.length,
+        lowStockItems: lowStock
+      };
+    } catch (e) {
+      console.error("DB: Failed to fetch inventory report", e);
+      return { totalItems: 0, totalValue: 0, lowStockCount: 0, lowStockItems: [] };
+    }
+  },
+
+  // --- UNITS & CONVERSIONS ---
+  getUnits: async (): Promise<any[]> => {
+    try {
+      const unitsRef = firestoreCollection(firestore, 'inventoryUnits');
+      const snapshot = await getDocs(unitsRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch units", e);
+      return [];
+    }
+  },
+
+  getConversions: async (): Promise<any[]> => {
+    try {
+      const conversionsRef = firestoreCollection(firestore, 'unitConversions');
+      const snapshot = await getDocs(conversionsRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.error("DB: Failed to fetch conversions", e);
+      return [];
+    }
+  },
+
+  createConversion: async (conversion: any): Promise<string> => {
+    try {
+      const conversionsRef = firestoreCollection(firestore, 'unitConversions');
+      const docRef = await addDoc(conversionsRef, cleanFirestoreData(conversion));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create conversion", e);
+      throw e;
+    }
+  },
+
+  updateConversion: async (conversionId: string, updates: any): Promise<void> => {
+    try {
+      const conversionRef = doc(firestore, 'unitConversions', conversionId);
+      await updateDoc(conversionRef, cleanFirestoreData(updates));
+    } catch (e) {
+      console.error("DB: Failed to update conversion", e);
+      throw e;
+    }
+  },
+
+  deleteConversion: async (conversionId: string): Promise<void> => {
+    try {
+      const conversionRef = doc(firestore, 'unitConversions', conversionId);
+      await deleteDoc(conversionRef);
+    } catch (e) {
+      console.error("DB: Failed to delete conversion", e);
+      throw e;
+    }
+  },
+
+  // --- ORDERS ---
+  createOrder: async (order: any): Promise<string> => {
+    try {
+      const ordersRef = firestoreCollection(firestore, 'orders');
+      const docRef = await addDoc(ordersRef, cleanFirestoreData({
+        ...order,
+        createdAt: serverTimestamp()
+      }));
+      return docRef.id;
+    } catch (e) {
+      console.error("DB: Failed to create order", e);
+      throw e;
+    }
+  },
+
 };
 
-// Export as default 'db' for compatibility
 export const db = firebaseDb;
 

@@ -4,6 +4,7 @@
  */
 
 import { db as firestore } from '../lib/firebase';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import { collection, doc, setDoc, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
 export interface SignalingMessage {

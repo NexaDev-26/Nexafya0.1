@@ -61,7 +61,7 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
     price: 0,
     currency: 'TZS',
     newCategory: '',
-    status: 'draft' as 'draft' | 'published' | 'archived'
+    status: 'draft' as Article['status']
   });
   
   // Image input state
@@ -465,9 +465,14 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
                     <button onClick={(e) => handleToggleLike(e, selectedArticle.id)} className={`flex items-center gap-1 transition-colors ${isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}><Heart size={22} fill={isLiked ? "currentColor" : "none"} /><span className="text-xs font-bold">{selectedArticle.likes}</span></button>
                     <button
                       onClick={async () => {
-                        await (db as any).incrementArticleShare?.(selectedArticle.id);
-                        setArticles(prev => prev.map(a => a.id === selectedArticle.id ? { ...a, shares: (a.shares || 0) + 1 } : a));
-                        notify('Thanks for sharing!', 'success');
+                        try {
+                          await (db as any).incrementArticleShare?.(selectedArticle.id);
+                          setArticles(prev => prev.map(a => a.id === selectedArticle.id ? { ...a, shares: (a.shares || 0) + 1 } : a));
+                          notify('Thanks for sharing!', 'success');
+                        } catch (error) {
+                          console.error('Failed to increment share:', error);
+                          notify('Failed to record share', 'error');
+                        }
                       }}
                       className="flex items-center gap-1 text-gray-400 hover:text-blue-600 transition-colors"
                       title="Share"

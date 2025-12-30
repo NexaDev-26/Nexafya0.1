@@ -4,6 +4,7 @@
  */
 
 import { db as firestore, auth } from '../lib/firebase';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import {
   collection,
   addDoc,

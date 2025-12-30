@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, CheckCircle, X, AlertCircle, Search, Filter, Eye, FileText, User, Calendar, Building, Stethoscope, Truck, Loader2, ExternalLink } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
+import type { NotificationType } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole, UserVerification, VerificationDocument } from '../types';
 import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -8,15 +9,22 @@ import { db as firestore } from '../lib/firebase';
 import { notificationService } from '../services/notificationService';
 import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
+interface ExtendedUserVerification extends UserVerification {
+  id?: string;
+  userName?: string;
+  userEmail?: string;
+  userPhone?: string;
+}
+
 export const AdminVerificationReview: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { notify } = useNotification();
-  const [verifications, setVerifications] = useState<UserVerification[]>([]);
+  const [verifications, setVerifications] = useState<ExtendedUserVerification[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'ALL'>('ALL');
-  const [selectedVerification, setSelectedVerification] = useState<UserVerification | null>(null);
+  const [selectedVerification, setSelectedVerification] = useState<ExtendedUserVerification | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
@@ -42,18 +50,18 @@ export const AdminVerificationReview: React.FC = () => {
 
       const snapshot = await getDocs(q);
       const verificationsData = await Promise.all(
-        snapshot.docs.map(async (doc) => {
-          const data = doc.data() as UserVerification;
+        snapshot.docs.map(async (docSnapshot) => {
+          const data = docSnapshot.data() as UserVerification;
           // Fetch user details
           const userDoc = await getDoc(doc(firestore, 'users', data.userId));
-          const userData = userDoc.data();
+          const userData = userDoc.data() as any;
           return {
             ...data,
-            id: doc.id,
+            id: docSnapshot.id,
             userName: userData?.name || 'Unknown',
             userEmail: userData?.email || '',
             userPhone: userData?.phone || ''
-          };
+          } as ExtendedUserVerification;
         })
       );
       setVerifications(verificationsData);
@@ -140,7 +148,7 @@ export const AdminVerificationReview: React.FC = () => {
         message: reviewAction === 'approve' 
           ? 'Congratulations! Your account has been verified. You can now access all features.'
           : `Your verification was rejected. Reason: ${reviewNotes || 'Please check your documents and resubmit.'}`,
-        type: reviewAction === 'approve' ? 'success' : 'error',
+        type: (reviewAction === 'approve' ? 'success' : 'error') as 'success' | 'error',
         link: '/profile'
       });
 

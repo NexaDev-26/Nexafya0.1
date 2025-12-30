@@ -69,7 +69,7 @@ export const SupplierManagement: React.FC = () => {
       };
 
       if (editingSupplier) {
-        await db.updateSupplier?.(supplierData);
+        await db.updateSupplier(editingSupplier.id, supplierData);
         notify('Supplier updated successfully', 'success');
       } else {
         await db.createSupplier?.(supplierData);

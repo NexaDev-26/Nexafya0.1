@@ -185,7 +185,7 @@ export const Profile: React.FC<ProfileProps> = ({
                   }
                   
                   // Load available tier configs for this role
-                  const configs = await firebaseDb.getTrustTierConfigs(user.role);
+                  const configs = await firebaseDb.getTrustTierConfigs(user.role === UserRole.DOCTOR ? 'DOCTOR' : user.role === UserRole.COURIER ? 'COURIER' : undefined);
                   setTrustTierConfigs(configs);
               } catch (e) {
                   console.error('Failed to load trust tier data', e);
@@ -710,12 +710,17 @@ export const Profile: React.FC<ProfileProps> = ({
                                                         </div>
                                                         <button
                                                             onClick={async () => {
-                                                                const paymentMethodCollection = user.role === UserRole.DOCTOR 
-                                                                    ? 'doctorPaymentMethods' 
-                                                                    : 'pharmacyPaymentMethods';
-                                                                await deleteDoc(doc(firestore, paymentMethodCollection, pm.id));
-                                                                setPaymentMethods(prev => prev.filter(x => x.id !== pm.id));
-                                                                notify('Payment method removed', 'info');
+                                                                try {
+                                                                    const paymentMethodCollection = user.role === UserRole.DOCTOR 
+                                                                        ? 'doctorPaymentMethods' 
+                                                                        : 'pharmacyPaymentMethods';
+                                                                    await deleteDoc(doc(firestore, paymentMethodCollection, pm.id));
+                                                                    setPaymentMethods(prev => prev.filter(x => x.id !== pm.id));
+                                                                    notify('Payment method removed', 'info');
+                                                                } catch (error) {
+                                                                    console.error('Failed to remove payment method:', error);
+                                                                    notify('Failed to remove payment method', 'error');
+                                                                }
                                                             }}
                                                             className="text-red-600 dark:text-red-400 font-bold text-sm hover:text-red-700 dark:hover:text-red-300 transition-colors"
                                                         >
@@ -763,13 +768,18 @@ export const Profile: React.FC<ProfileProps> = ({
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={async () => {
-                                                                    await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({ 
-                                                                        status: 'REJECTED', 
-                                                                        verifiedAt: serverTimestamp(),
-                                                                        verifiedBy: user.id
-                                                                    }));
-                                                                    setPendingPayments(prev => prev.filter(p => p.id !== pay.id));
-                                                                    notify('Payment rejected', 'info');
+                                                                    try {
+                                                                        await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({ 
+                                                                            status: 'REJECTED', 
+                                                                            verifiedAt: serverTimestamp(),
+                                                                            verifiedBy: user.id
+                                                                        }));
+                                                                        setPendingPayments(prev => prev.filter(p => p.id !== pay.id));
+                                                                        notify('Payment rejected', 'info');
+                                                                    } catch (error) {
+                                                                        console.error('Failed to reject payment:', error);
+                                                                        notify('Failed to reject payment', 'error');
+                                                                    }
                                                                 }}
                                                                 className="px-4 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-bold text-sm hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                                                             >
@@ -1523,7 +1533,7 @@ export const Profile: React.FC<ProfileProps> = ({
                     <VerificationDocumentUpload />
                 )}
                 {activeTab === 'settings' && (
-                    <Settings user={user} onLogout={onLogout} />
+                    <Settings />
                 )}
             </div>
         </div>

@@ -225,7 +225,7 @@ export const VerificationDocumentUpload: React.FC<VerificationDocumentUploadProp
 
   const requiredDocs = requiredDocuments[user.role] || [];
   const uploadedDocTypes = documents.map(d => d.type);
-  const missingDocs = requiredDocs.filter(docType => !uploadedDocTypes.includes(docType));
+  const missingDocs = requiredDocs.filter((docType: VerificationDocument['type']) => !uploadedDocTypes.includes(docType));
 
   const getStatusColor = (status: string) => {
     switch (status) {

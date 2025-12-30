@@ -46,7 +46,7 @@ export const HealthAnalytics: React.FC = () => {
   const loadMetrics = async () => {
     try {
       setLoading(true);
-      const data = await db.getHealthMetrics?.(user?.id || '', dateRange) || [];
+      const data = await db.getHealthMetrics(user?.id || '') || [];
       setMetrics(data);
       
       // Generate insights

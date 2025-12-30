@@ -16,7 +16,7 @@ import {
   Calendar,
   Clock
 } from 'lucide-react';
-import { Prescription, Medicine } from '../types';
+import { Prescription, Medicine, PrescriptionItem as PrescriptionItemType } from '../types';
 import { db } from '../services/db';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,11 +34,13 @@ interface PrescriptionItem {
   quantity: number;
 }
 
-interface EPrescription extends Prescription {
+interface EPrescription extends Omit<Prescription, 'items' | 'status'> {
   items: PrescriptionItem[];
   digitalSignature?: string;
   qrCode?: string;
-  status: 'DRAFT' | 'SIGNED' | 'SENT' | 'FULFILLED';
+  status: 'DRAFT' | 'SIGNED' | 'SENT' | 'FULFILLED' | Prescription['status'];
+  diagnosis?: string;
+  date?: string;
 }
 
 export const EPrescription: React.FC = () => {
@@ -134,13 +136,13 @@ export const EPrescription: React.FC = () => {
         patientId: formData.patientId,
         patientName: formData.patientName,
         items: formData.items.map(item => ({
-          medicineId: item.medicineId,
-          name: item.medicineName,
+          medication: item.medicineName || '',
           dosage: item.dosage,
           frequency: item.frequency,
           duration: item.duration,
-          instructions: item.instructions,
-        })),
+          instructions: item.instructions || '',
+          quantity: Number(item.quantity) || 1
+        } as PrescriptionItemType)),
         date: new Date().toISOString(),
         status: 'DRAFT',
         notes: formData.notes,
@@ -148,10 +150,10 @@ export const EPrescription: React.FC = () => {
       };
 
       if (editingPrescription) {
-        await db.updatePrescription?.(prescriptionData);
+        await db.updatePrescription(prescriptionData.id!, prescriptionData);
         notify('Prescription updated successfully', 'success');
       } else {
-        await db.createPrescription?.(prescriptionData);
+        await db.createPrescription(prescriptionData);
         notify('Prescription created successfully', 'success');
       }
 
@@ -177,7 +179,7 @@ export const EPrescription: React.FC = () => {
           digitalSignature: signature,
           status: 'SIGNED' as const,
         };
-        await db.updatePrescription?.(updated);
+        await db.updatePrescription(prescription.id!, updated);
         notify('Prescription signed successfully', 'success');
         loadData();
       }
@@ -194,7 +196,7 @@ export const EPrescription: React.FC = () => {
           ...prescription,
           status: 'SENT' as const,
         };
-        await db.updatePrescription?.(updated);
+        await db.updatePrescription(prescription.id!, updated);
         notify('Prescription sent to pharmacy', 'success');
         loadData();
       }
@@ -334,7 +336,7 @@ export const EPrescription: React.FC = () => {
                           key={index}
                           className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm"
                         >
-                          {item.name || item.medicineName}
+                          {(item as any).name || (item as any).medicineName || item.medication}
                         </span>
                       ))}
                       {prescription.items.length > 3 && (

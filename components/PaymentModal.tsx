@@ -258,7 +258,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="p-4 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto">
           <div className="text-center mb-4 sm:mb-6">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-nexafya-blue/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-              <CreditCard className="text-nexafya-blue" size={24} className="sm:w-8 sm:h-8" />
+              <CreditCard className="text-nexafya-blue sm:w-8 sm:h-8" size={24} />
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-800 mb-1 sm:mb-2">Complete Payment</h2>
             <p className="text-gray-500 text-xs sm:text-sm px-2">{description}</p>
@@ -448,7 +448,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    <Icon className={`mx-auto mb-1 sm:mb-2 ${selectedMethod === method.id ? 'text-nexafya-blue' : method.color}`} size={20} className="sm:w-6 sm:h-6" />
+                    <Icon className={`mx-auto mb-1 sm:mb-2 sm:w-6 sm:h-6 ${selectedMethod === method.id ? 'text-nexafya-blue' : method.color}`} size={20} />
                     <p className={`text-[10px] sm:text-xs font-bold leading-tight ${selectedMethod === method.id ? 'text-nexafya-blue' : 'text-gray-600 dark:text-gray-600'}`}>
                       {method.name}
                     </p>

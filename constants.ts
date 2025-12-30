@@ -78,8 +78,7 @@ export const MOCK_DOCTORS: Doctor[] = [
     availability: ['Mon', 'Tue', 'Thu'], 
     price: 25000, 
     experience: 8,
-    points: 1200,
-    subscriptionTier: 'Professional'
+    points: 1200
   },
   { 
     id: '3', 
@@ -93,8 +92,7 @@ export const MOCK_DOCTORS: Doctor[] = [
     availability: ['Mon', 'Wed', 'Fri'], 
     price: 45000, 
     experience: 12,
-    points: 3200,
-    subscriptionTier: 'Enterprise'
+    points: 3200
   }
 ];
 

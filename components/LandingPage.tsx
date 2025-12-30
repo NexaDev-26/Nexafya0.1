@@ -32,7 +32,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         const prts = await db.getPartners();
         setPartners(prts);
         const pkgs = await db.getPackages();
-        setDoctorPackages(pkgs.filter(p => p.role === 'DOCTOR'));
+        setDoctorPackages([]); // Doctors use trust tiers, not subscriptions
         setPharmacyPackages(pkgs.filter(p => p.role === 'PHARMACY'));
     };
     loadContent();

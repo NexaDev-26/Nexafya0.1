@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { SUBSCRIPTION_PACKAGES } from '../constants';
 import { Appointment, Medicine, UserRole, PaymentMethod, Doctor, HealthRecord } from '../types';
 import { Calendar as CalendarIcon, Video, Clock, ChevronRight, User, FileText, CheckCircle, X, Plus, Pill, Search, AlertCircle, History, Activity, ClipboardList, ArrowLeft, Gift, Award, MoreVertical, MapPin, DollarSign, CreditCard, Shield, Smartphone, Lock, Copy, Hash, Loader2, Navigation, ChevronLeft, LayoutList, Filter, CalendarDays, ExternalLink, Download } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
@@ -379,24 +378,29 @@ export const Consultations: React.FC<ConsultationsProps> = ({
                         </button>
                         <button
                           onClick={async () => {
-                            if (!newBooking.doctor) {
-                              notify('Please select a doctor', 'error');
-                              return;
+                            try {
+                              if (!newBooking.doctor) {
+                                notify('Please select a doctor', 'error');
+                                return;
+                              }
+                              const apt: Appointment = {
+                                id: `tmp-${Date.now()}`,
+                                doctorId: newBooking.doctor.id,
+                                doctorName: newBooking.doctor.name,
+                                patientName: userName || 'Patient',
+                                date: newBooking.date,
+                                time: newBooking.time,
+                                status: 'UPCOMING',
+                                paymentStatus: 'PENDING',
+                                type: (newBooking.mode || 'CHAT'),
+                                fee: newBooking.doctor.price
+                              };
+                              await onBookAppointment?.(apt);
+                              setShowBookingModal(false);
+                            } catch (error) {
+                              console.error('Failed to book appointment:', error);
+                              notify('Failed to book appointment', 'error');
                             }
-                            const apt: Appointment = {
-                              id: `tmp-${Date.now()}`,
-                              doctorId: newBooking.doctor.id,
-                              doctorName: newBooking.doctor.name,
-                              patientName: userName || 'Patient',
-                              date: newBooking.date,
-                              time: newBooking.time,
-                              status: 'UPCOMING',
-                              paymentStatus: 'PENDING',
-                              type: (newBooking.mode || 'CHAT'),
-                              fee: newBooking.doctor.price
-                            };
-                            await onBookAppointment?.(apt);
-                            setShowBookingModal(false);
                           }}
                           className="px-8 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20"
                         >

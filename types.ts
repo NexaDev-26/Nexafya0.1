@@ -56,6 +56,7 @@ export interface Appointment {
   fee?: number;
   meetingLink?: string;
   notes?: string; // Added for clinical notes storage
+  location?: string; // For in-person appointments
 }
 
 export interface Medicine {
@@ -156,6 +157,10 @@ export interface FamilyMember {
   avatar: string;
   isCaregiver?: boolean; // Can act as caregiver
   linkedPatientId?: string; // If this member is linked to a patient
+  bloodType?: string;
+  allergies?: string[];
+  medicalConditions?: string[];
+  dateOfBirth?: string;
 }
 
 export interface Prescription {
@@ -477,4 +482,7 @@ export interface SubscriptionPackage {
   description: string;
   features: string[];
   allowedMethods: string[];
+  isPopular?: boolean;
+  currency?: string;
+  period?: string;
 }

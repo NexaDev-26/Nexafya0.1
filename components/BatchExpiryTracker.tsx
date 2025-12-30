@@ -155,10 +155,10 @@ export const BatchExpiryTracker: React.FC = () => {
       };
 
       if (editingBatch) {
-        await db.updateBatch?.(editingBatch.medicineId, batchData);
+        await db.updateBatch(editingBatch.id, batchData);
         notify('Batch updated successfully', 'success');
       } else {
-        await db.addBatch?.(formData.medicineId, batchData);
+        await db.addBatch(batchData);
         notify('Batch added successfully', 'success');
       }
 
@@ -195,7 +195,7 @@ export const BatchExpiryTracker: React.FC = () => {
     if (!confirm('Are you sure you want to delete this batch?')) return;
 
     try {
-      await db.deleteBatch?.(medicineId, id);
+      await db.deleteBatch(id);
       notify('Batch deleted', 'success');
       loadData();
     } catch (error) {

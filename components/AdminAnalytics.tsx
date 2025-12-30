@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ADMIN_STATS_DATA, SUBSCRIPTION_PACKAGES } from '../constants';
+import { ADMIN_STATS_DATA } from '../constants';
 import { Users, DollarSign, Activity, CheckCircle, TrendingUp, FileText, Server, AlertOctagon, ArrowDownRight, CreditCard, Layers, Shield, Settings, Check, X, Handshake, Plus, Trash2, Edit2, Save, MoreVertical, Search, Filter, Banknote, History, Box, ChevronRight, Bell, Download } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useNotification } from './NotificationSystem';
@@ -16,6 +16,7 @@ import { DataExport } from './DataExport';
 import { TrustTierManagement } from './TrustTierManagement';
 import { ArticleVerification } from './ArticleVerification';
 import { AdminVerificationReview } from './AdminVerificationReview';
+import { addSampleDoctors } from '../utils/addSampleDoctors';
 
 export const AdminAnalytics: React.FC = () => {
   const { notify } = useNotification();
@@ -34,14 +35,11 @@ export const AdminAnalytics: React.FC = () => {
   const [editingPkgId, setEditingPkgId] = useState<string | null>(null);
   const [pkgFormData, setPkgFormData] = useState<Partial<SubscriptionPackage>>({
       name: '',
-      role: 'DOCTOR',
+      role: 'PHARMACY',
       price: '',
-      currency: 'TZS',
-      period: '/mo',
       description: '',
       features: [],
-      allowedMethods: [],
-      isPopular: false
+      allowedMethods: []
   });
 
   const { isDarkMode: isDark } = useDarkMode();
@@ -70,7 +68,13 @@ export const AdminAnalytics: React.FC = () => {
                       db.getPendingTransactions()
                   ]);
                   setPendingVerifications(verifData || []);
-                  setPendingPayments(payData || []);
+                  setPendingPayments((payData || []).map((p: any) => ({
+                    ...p,
+                    amount: Number(p.amount) || 0,
+                    currency: p.currency || 'TZS',
+                    type: p.type || 'CONSULTATION_FEE',
+                    status: p.status || 'PENDING'
+                  })) as (Transaction & { userName?: string })[]);
               }
           } catch (e) {
               console.error("Failed to load admin data", e);
@@ -114,14 +118,11 @@ export const AdminAnalytics: React.FC = () => {
       setEditingPkgId(null);
       setPkgFormData({
           name: '',
-          role: 'DOCTOR',
+          role: 'PHARMACY',
           price: '0',
-          currency: 'TZS',
-          period: '/mo',
           description: '',
           features: [],
-          allowedMethods: ['M-Pesa', 'Bank'],
-          isPopular: false
+          allowedMethods: ['M-Pesa', 'Bank']
       });
       setIsEditingPackage(true);
   };
@@ -133,8 +134,8 @@ export const AdminAnalytics: React.FC = () => {
       }
 
       const updatedPackages = editingPkgId 
-          ? packages.map(p => p.id === editingPkgId ? { ...p, ...pkgFormData } as SubscriptionPackage : p)
-          : [...packages, { ...pkgFormData, id: `pkg-${Date.now()}` } as SubscriptionPackage];
+          ? packages.map(p => p.id === editingPkgId ? { ...p, ...pkgFormData, role: 'PHARMACY' } as SubscriptionPackage : p)
+          : [...packages, { ...pkgFormData, id: `pkg-${Date.now()}`, role: 'PHARMACY' } as SubscriptionPackage];
 
       try {
           await db.updatePackages(updatedPackages);
@@ -216,6 +217,26 @@ export const AdminAnalytics: React.FC = () => {
             <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Doctors</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalDoctors) || 0}</p>
+              {Number(stats.totalDoctors) === 0 && (
+                <button
+                  onClick={async () => {
+                    notify('Adding sample doctors...', 'info');
+                    const result = await addSampleDoctors();
+                    if (result.success) {
+                      notify(result.message, 'success');
+                      // Reload stats
+                      const { analyticsService } = await import('../services/analyticsService');
+                      const updatedStats = await analyticsService.getAdminStats();
+                      setAdminStats(updatedStats);
+                    } else {
+                      notify(result.message, 'error');
+                    }
+                  }}
+                  className="mt-2 w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+                >
+                  Add Sample Doctors
+                </button>
+              )}
             </div>
             <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Pharmacies</p>
@@ -302,40 +323,18 @@ export const AdminAnalytics: React.FC = () => {
                           </div>
                           <div>
                               <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Target Role</label>
-                              <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-100 rounded-xl">
-                                  <button 
-                                      onClick={() => setPkgFormData({...pkgFormData, role: 'DOCTOR'})}
-                                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${pkgFormData.role === 'DOCTOR' ? 'bg-white dark:bg-[#0A0F1C] shadow text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}
-                                  >
-                                      Doctors
-                                  </button>
-                                  <button 
-                                      onClick={() => setPkgFormData({...pkgFormData, role: 'PHARMACY'})}
-                                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${pkgFormData.role === 'PHARMACY' ? 'bg-white dark:bg-[#0A0F1C] shadow text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}
-                                  >
-                                      Pharmacies
-                                  </button>
+                              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">PHARMACY (Only pharmacies have subscription packages)</span>
                               </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Price</label>
-                                  <input 
-                                      type="text" 
-                                      value={pkgFormData.price}
-                                      onChange={e => setPkgFormData({...pkgFormData, price: e.target.value})}
-                                      className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-100 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Period</label>
-                                  <input 
-                                      type="text" 
-                                      value={pkgFormData.period}
-                                      onChange={e => setPkgFormData({...pkgFormData, period: e.target.value})}
-                                      className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                                  />
-                              </div>
+                          <div>
+                              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Price</label>
+                              <input 
+                                  type="text" 
+                                  value={pkgFormData.price}
+                                  onChange={e => setPkgFormData({...pkgFormData, price: e.target.value})}
+                                  className="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-100 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                              />
                           </div>
                       </div>
 
@@ -419,15 +418,6 @@ export const AdminAnalytics: React.FC = () => {
                                   </button>
                               </div>
                           </div>
-                          <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                              <input 
-                                  type="checkbox" 
-                                  checked={pkgFormData.isPopular}
-                                  onChange={e => setPkgFormData({...pkgFormData, isPopular: e.target.checked})}
-                                  className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">Mark as "Popular" (Recommended)</span>
-                          </div>
                       </div>
                   </div>
 
@@ -443,7 +433,7 @@ export const AdminAnalytics: React.FC = () => {
                   {packages.map(pkg => (
                       <div key={pkg.id} className="bg-white dark:bg-[#0F172A] p-6 rounded-[2.5rem] border border-gray-100 dark:border-gray-700/50 shadow-sm group hover:shadow-md transition-all">
                           <div className="flex justify-between items-start mb-6">
-                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pkg.role === 'DOCTOR' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">
                                   {pkg.role}
                               </span>
                               <div className="flex gap-1">
@@ -456,8 +446,8 @@ export const AdminAnalytics: React.FC = () => {
                           <p className="text-sm text-gray-500 mb-6 line-clamp-2">{pkg.description}</p>
                           
                           <div className="mb-6 flex items-baseline gap-1">
-                              <span className="text-2xl font-black text-gray-900 dark:text-white">{pkg.currency || 'TZS'} {typeof pkg.price === 'number' ? pkg.price.toLocaleString() : (pkg.price || '0')}</span>
-                              <span className="text-xs text-gray-400 font-bold">{pkg.period || '/mo'}</span>
+                              <span className="text-2xl font-black text-gray-900 dark:text-white">TZS {pkg.price || '0'}</span>
+                              <span className="text-xs text-gray-400 font-bold">/mo</span>
                           </div>
 
                           <div className="space-y-3 pt-6 border-t border-gray-50 dark:border-gray-700/50">

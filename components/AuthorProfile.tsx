@@ -75,8 +75,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({
             location: doctorData.location || 'Tanzania',
             specialty: doctorData.specialty || 'General Practitioner',
             rating: Number(doctorData.rating) || 5.0,
-            price: doctorData.consultationFee || doctorData.consultation_fee || 0,
-            experience: doctorData.experienceYears || doctorData.experience_years || 0,
+            price: (doctorData as any).consultationFee || (doctorData as any).consultation_fee || doctorData.price || 0,
+            experience: (doctorData as any).experienceYears || (doctorData as any).experience_years || doctorData.experience || 0,
             availability: doctorData.availability || [],
             trustTier: doctorData.trustTier,
             isTrusted: doctorData.isTrusted || false,
@@ -84,8 +84,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({
             points: doctorData.points || 0,
             bio: doctorData.bio || '',
             workplace: doctorData.workplace || '',
-            ratingCount: doctorData.ratingCount || 0
-          };
+            ratingCount: (doctorData as any).ratingCount || 0
+          } as Doctor & { ratingCount?: number };
           setAuthor(doctor);
         } else {
           // Fallback to user data
@@ -254,8 +254,8 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({
                     <div className="flex items-center gap-1">
                       <Star className="text-amber-400 fill-amber-400" size={18} />
                       <span className="font-bold">{doctor.rating.toFixed(1)}</span>
-                      {doctor.ratingCount > 0 && (
-                        <span className="text-sm text-gray-500">({doctor.ratingCount})</span>
+                      {(doctor as any).ratingCount > 0 && (
+                        <span className="text-sm text-gray-500">({(doctor as any).ratingCount})</span>
                       )}
                     </div>
                   )}

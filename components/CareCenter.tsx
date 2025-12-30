@@ -182,7 +182,7 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                                   <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
                                       {selectedDoctor.name}
                                       {selectedDoctor.isTrusted && (
-                                          <CheckCircle size={20} className="text-blue-500" fill="currentColor" color="white" title="Verified Doctor" />
+                                          <CheckCircle size={20} className="text-blue-500" fill="currentColor" />
                                       )}
                                       {selectedDoctor.verificationStatus === 'Verified' && (
                                           <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full">Verified</span>

@@ -57,11 +57,11 @@ export const AdminFinancial: React.FC = () => {
       setTransactions(allTransactions);
 
       // Calculate summary
-      const verified = allTransactions.filter(t => t.status === 'VERIFIED' || t.status === 'COMPLETED');
-      const totalRevenue = verified.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const verified = allTransactions.filter((t: any) => t.status === 'VERIFIED' || t.status === 'COMPLETED');
+      const totalRevenue = verified.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
       
-      const pending = allTransactions.filter(t => t.status === 'PENDING');
-      const pendingPayouts = pending.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const pending = allTransactions.filter((t: any) => t.status === 'PENDING');
+      const pendingPayouts = pending.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
 
       setFinancialSummary({
         totalRevenue,

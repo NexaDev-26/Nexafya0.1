@@ -128,9 +128,14 @@ export const Pharmacy: React.FC = () => {
 
   const handleDeleteItem = async (id: string) => {
       if(!confirm("Remove this item?")) return;
-      await db.deleteInventoryItem(id);
-      // Real-time sync will update myInventory automatically
-      notify("Item removed (synced)", "info");
+      try {
+          await db.deleteInventoryItem(id);
+          // Real-time sync will update myInventory automatically
+          notify("Item removed (synced)", "info");
+      } catch (error) {
+          console.error('Failed to delete item:', error);
+          notify("Failed to remove item", "error");
+      }
   };
 
   // -- PRESCRIPTION HANDLERS --
@@ -147,13 +152,13 @@ export const Pharmacy: React.FC = () => {
                   setClaimingRx(null);
               } else {
                   setClaimingRx({
-                      id: rx.id,
-                      patient: rx.patient?.name || 'Unknown Patient',
+                      id: rx.id || '',
+                      patient: (rx as any).patient?.name || rx.patientName || 'Unknown Patient',
                       doctor: rx.doctorName || 'Dr. Specialist',
-                      items: typeof rx.items === 'string' ? JSON.parse(rx.items) : rx.items,
-                      status: rx.status,
-                      notes: rx.notes,
-                      qr_code: rx.qr_code
+                      items: typeof rx.items === 'string' ? JSON.parse(rx.items) : (rx.items || []),
+                      status: rx.status || 'ISSUED',
+                      notes: rx.notes || '',
+                      qr_code: rx.qrCode || rx.qrCodeUrl || (rx as any).qr_code || ''
                   });
                   notify("Prescription Verified!", "success");
               }
@@ -389,7 +394,7 @@ export const Pharmacy: React.FC = () => {
                   {/* POS TAB */}
                   {mgmtTab === 'pos' && (
                       <div className="h-full overflow-y-auto pr-2">
-                          <PharmacyPOS />
+                          <PharmacyPOS user={user} />
                       </div>
                   )}
 

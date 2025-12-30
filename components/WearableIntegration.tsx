@@ -64,6 +64,7 @@ export const WearableIntegration: React.FC = () => {
       await wearableService.connectDevice({
         userId: user.id,
         ...newDevice,
+        isActive: true,
       });
       
       notify('Device connected successfully', 'success');

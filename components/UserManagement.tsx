@@ -28,7 +28,12 @@ export const UserManagement: React.FC = () => {
     setLoading(true);
     try {
       const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, orderBy('createdAt', 'desc'));
+      let q = query(usersRef);
+      try {
+        q = query(usersRef, orderBy('createdAt', 'desc'));
+      } catch {
+        // If createdAt field doesn't exist, use default query
+      }
       const snapshot = await getDocs(q);
       
       // Load verification status for each user
@@ -166,7 +171,7 @@ export const UserManagement: React.FC = () => {
                   u.role,
                   u.location || '',
                   u.isActive !== false ? 'Active' : 'Inactive',
-                  u.createdAt ? (u.createdAt.toDate ? u.createdAt.toDate().toISOString() : new Date(u.createdAt).toISOString()) : '',
+                  (u as any).createdAt ? ((u as any).createdAt.toDate ? (u as any).createdAt.toDate().toISOString() : new Date((u as any).createdAt).toISOString()) : '',
                 ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
               ].join('\n');
               const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

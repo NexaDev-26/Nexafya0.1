@@ -202,6 +202,11 @@ const MainApp: React.FC = () => {
       }
   };
 
+  const handleBookAppointmentByDoctorId = (doctorId: string) => {
+      setTargetDoctorId(doctorId);
+      handleNavigate('consultations');
+  };
+
   const handleCancelAppointment = async (id: string) => {
       try {
           await db.updateAppointmentStatus(id, 'CANCELLED');
@@ -372,7 +377,7 @@ const MainApp: React.FC = () => {
               }
             }}
             onNavigate={handleNavigate}
-            onBookAppointment={handleBookAppointment}
+            onBookAppointment={handleBookAppointmentByDoctorId}
           />
         ) : null;
       case 'video-call':

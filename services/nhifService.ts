@@ -16,6 +16,11 @@ export interface NHIFMember {
   coverageType: 'INDIVIDUAL' | 'FAMILY';
   expiryDate?: string;
   benefits: NHIFBenefit[];
+  dependents?: Array<{
+    name: string;
+    relationship: string;
+    dateOfBirth: string;
+  }>;
 }
 
 export interface NHIFBenefit {
