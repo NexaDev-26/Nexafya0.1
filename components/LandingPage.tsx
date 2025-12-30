@@ -4,6 +4,7 @@ import { Play, ArrowRight, Activity, Stethoscope, Pill, MessageSquare, Truck, Us
 import { db } from '../services/db';
 import { Partner, SubscriptionPackage } from '../types';
 import { useDarkMode } from '../contexts/DarkModeContext';
+import { LogoIcon } from './LogoIcon';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -446,10 +447,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || mobileMenuOpen ? 'bg-white/95 dark:bg-[#0A0F1C]/95 backdrop-blur-md py-4 shadow-sm border-b border-gray-100 dark:border-gray-700/50' : 'py-6 bg-white/50 dark:bg-[#0A0F1C]/50 backdrop-blur-sm'}`}>
         <div className="max-w-[1280px] mx-auto px-6 md:px-8 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => handleNavClick('home')}>
-               <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-600/20 transition-transform group-hover:scale-105">
-                  <span className="text-white font-serif font-bold text-2xl">+</span>
-               </div>
-               <span className="text-2xl font-bold tracking-tight text-gray-900">NexaFya</span>
+               <LogoIcon className="w-10 h-10" />
+               <span className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white transition-colors">NexaFya</span>
             </div>
 
             {/* Desktop Nav */}
@@ -530,10 +529,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                   {/* Brand */}
                   <div className="lg:col-span-2">
                       <div className="flex items-center gap-3 mb-6">
-                          <div className="w-10 h-10 bg-teal-600 dark:bg-teal-500 rounded-xl flex items-center justify-center">
-                              <span className="text-white font-serif font-bold text-2xl">+</span>
-                          </div>
-                          <span className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">NexaFya</span>
+                          <LogoIcon className="w-10 h-10" />
+                          <span className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white transition-colors">NexaFya</span>
                       </div>
                       <p className="text-gray-500 dark:text-gray-300 text-sm leading-relaxed mb-8 max-w-sm">
                           Making healthcare accessible, affordable, and dignified for everyone in East Africa.

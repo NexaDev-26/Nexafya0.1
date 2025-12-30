@@ -50,6 +50,32 @@ VITE_AIRTEL_MONEY_MERCHANT_ID=your_airtel_money_merchant_id
 VITE_AIRTEL_MONEY_ENVIRONMENT=sandbox
 
 # ============================================
+# Stripe Payment Gateway
+# ============================================
+VITE_STRIPE_SECRET_KEY=your_stripe_secret_key
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+
+# ============================================
+# PayPal Payment Gateway
+# ============================================
+VITE_PAYPAL_CLIENT_ID=your_paypal_client_id
+VITE_PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+VITE_PAYPAL_ENVIRONMENT=sandbox
+
+# ============================================
+# Lipanamba Payment Gateway (Tanzania)
+# ============================================
+VITE_LIPANAMBA_API_KEY=your_lipanamba_api_key
+VITE_LIPANAMBA_MERCHANT_ID=your_lipanamba_merchant_id
+VITE_LIPANAMBA_BASE_URL=https://api.lipanamba.com
+
+# ============================================
+# NHIF Integration (Tanzania)
+# ============================================
+VITE_NHIF_API_KEY=your_nhif_api_key
+VITE_NHIF_BASE_URL=https://api.nhif.go.tz
+
+# ============================================
 # SMS Service (Choose one: Twilio OR AfricasTalking)
 # ============================================
 # Twilio
@@ -102,6 +128,25 @@ VITE_APP_ENV=development
 ### Airtel Money
 1. Contact Airtel Money for API credentials
 2. Register as a merchant
+
+### Stripe
+1. Sign up at: https://stripe.com
+2. Get API keys from Dashboard > Developers > API keys
+3. Use test keys for development, live keys for production
+
+### PayPal
+1. Sign up at: https://developer.paypal.com
+2. Create an app to get Client ID and Secret
+3. Use sandbox for testing, production for live
+
+### Lipanamba
+1. Contact Lipanamba for merchant account
+2. Get API key and Merchant ID from dashboard
+
+### NHIF
+1. Contact NHIF Tanzania for API access
+2. Register as a healthcare provider
+3. Get API key for member verification
 
 ### Twilio
 1. Sign up at: https://www.twilio.com

@@ -5,6 +5,7 @@
 
 import { db as firestore } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export type PaymentProvider = 
   | 'stripe' 
@@ -45,22 +46,22 @@ class PaymentService {
   async processPayment(request: PaymentRequest): Promise<PaymentResponse> {
     try {
       // Create transaction record
-      const transactionRef = await addDoc(collection(firestore, 'transactions'), {
+      const transactionRef = await addDoc(collection(firestore, 'transactions'), cleanFirestoreData({
         userId: request.userId,
         userName: request.userName,
         amount: request.amount,
         currency: request.currency,
         provider: request.provider,
         description: request.description,
-        itemId: request.itemId,
-        itemType: request.itemType,
-        recipientId: request.recipientId,
-        phoneNumber: request.phoneNumber,
+        itemId: request.itemId || '',
+        itemType: request.itemType || '',
+        recipientId: request.recipientId || '',
+        phoneNumber: request.phoneNumber || '',
         metadata: request.metadata || {},
         status: 'PENDING',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       // Route to appropriate payment handler
       switch (request.provider) {
@@ -92,78 +93,192 @@ class PaymentService {
 
   /**
    * Stripe Payment (Credit/Debit Cards)
+   * Requires: VITE_STRIPE_SECRET_KEY, VITE_STRIPE_PUBLISHABLE_KEY
    */
   private async processStripe(
     request: PaymentRequest,
     transactionId: string
   ): Promise<PaymentResponse> {
-    // In production, integrate with Stripe API
-    // For now, simulate successful payment
     try {
-      // TODO: Integrate with Stripe Checkout or Payment Intents API
-      // const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-      // const paymentIntent = await stripe.paymentIntents.create({...});
+      const stripeSecretKey = import.meta.env.VITE_STRIPE_SECRET_KEY;
+      
+      if (!stripeSecretKey) {
+        // Fallback to simulation if keys not configured
+        console.warn('Stripe keys not configured. Using simulation mode.');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+          status: 'COMPLETED',
+          referenceNumber: `STRIPE-SIM-${Date.now()}`,
+          completedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }));
 
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
+        return {
+          success: true,
+          transactionId,
+          referenceNumber: `STRIPE-SIM-${Date.now()}`,
+          message: 'Payment processed successfully via Stripe (simulation mode)',
+        };
+      }
 
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      // In production, use Stripe API
+      // For client-side, use Stripe.js with publishable key
+      // For server-side, use Stripe SDK with secret key
+      // This is a client-side implementation, so we'll use the payment intent flow
+      
+      const response = await fetch('https://api.stripe.com/v1/payment_intents', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          amount: Math.round(request.amount * 100).toString(), // Convert to cents
+          currency: request.currency.toLowerCase(),
+          description: request.description,
+          metadata: JSON.stringify({
+            transactionId,
+            userId: request.userId,
+            itemId: request.itemId || '',
+            itemType: request.itemType || '',
+          }),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Stripe payment failed');
+      }
+
+      const paymentIntent = await response.json();
+
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'COMPLETED',
-        referenceNumber: `STRIPE-${Date.now()}`,
+        referenceNumber: paymentIntent.id,
+        paymentIntentId: paymentIntent.id,
         completedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return {
         success: true,
         transactionId,
-        referenceNumber: `STRIPE-${Date.now()}`,
+        referenceNumber: paymentIntent.id,
         message: 'Payment processed successfully via Stripe',
       };
     } catch (error: any) {
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      console.error('Stripe payment error:', error);
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'FAILED',
-        error: error.message,
+        error: error.message || 'Stripe payment processing failed',
         updatedAt: serverTimestamp(),
-      });
+      }));
       throw error;
     }
   }
 
   /**
    * PayPal Payment
+   * Requires: VITE_PAYPAL_CLIENT_ID, VITE_PAYPAL_CLIENT_SECRET
    */
   private async processPayPal(
     request: PaymentRequest,
     transactionId: string
   ): Promise<PaymentResponse> {
-    // In production, integrate with PayPal SDK
     try {
-      // TODO: Integrate with PayPal REST API
-      // const paypal = require('@paypal/checkout-server-sdk');
-      // const order = await paypal.orders.create({...});
+      const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+      const clientSecret = import.meta.env.VITE_PAYPAL_CLIENT_SECRET;
+      const isSandbox = import.meta.env.VITE_PAYPAL_ENVIRONMENT !== 'production';
+      const baseUrl = isSandbox 
+        ? 'https://api.sandbox.paypal.com' 
+        : 'https://api.paypal.com';
 
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!clientId || !clientSecret) {
+        // Fallback to simulation if keys not configured
+        console.warn('PayPal keys not configured. Using simulation mode.');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+          status: 'COMPLETED',
+          referenceNumber: `PAYPAL-SIM-${Date.now()}`,
+          completedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }));
 
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+        return {
+          success: true,
+          transactionId,
+          referenceNumber: `PAYPAL-SIM-${Date.now()}`,
+          message: 'Payment processed successfully via PayPal (simulation mode)',
+        };
+      }
+
+      // Get OAuth token
+      const auth = btoa(`${clientId}:${clientSecret}`);
+      const tokenResponse = await fetch(`${baseUrl}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'grant_type=client_credentials',
+      });
+
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to authenticate with PayPal');
+      }
+
+      const { access_token } = await tokenResponse.json();
+
+      // Create order
+      const orderResponse = await fetch(`${baseUrl}/v2/checkout/orders`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          intent: 'CAPTURE',
+          purchase_units: [{
+            amount: {
+              currency_code: request.currency,
+              value: request.amount.toFixed(2),
+            },
+            description: request.description,
+            custom_id: transactionId,
+          }],
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.message || 'PayPal order creation failed');
+      }
+
+      const order = await orderResponse.json();
+
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'COMPLETED',
-        referenceNumber: `PAYPAL-${Date.now()}`,
+        referenceNumber: order.id,
+        paypalOrderId: order.id,
         completedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return {
         success: true,
         transactionId,
-        referenceNumber: `PAYPAL-${Date.now()}`,
+        referenceNumber: order.id,
         message: 'Payment processed successfully via PayPal',
       };
     } catch (error: any) {
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      console.error('PayPal payment error:', error);
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'FAILED',
-        error: error.message,
+        error: error.message || 'PayPal payment processing failed',
         updatedAt: serverTimestamp(),
-      });
+      }));
       throw error;
     }
   }
@@ -193,11 +308,11 @@ class PaymentService {
       );
 
       if (!stkResult.success) {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'FAILED',
           error: stkResult.error || 'STK Push failed',
           updatedAt: serverTimestamp(),
-        });
+        }));
         return {
           success: false,
           transactionId,
@@ -206,12 +321,12 @@ class PaymentService {
       }
 
       // Store checkout request ID for status polling
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'STK_REQUESTED',
-        checkoutRequestId: stkResult.checkoutRequestId,
+        checkoutRequestId: stkResult.checkoutRequestId || '',
         stkRequestedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       // Start polling for payment status
       this.pollMPesaStatus(transactionId, stkResult.checkoutRequestId!);
@@ -224,11 +339,11 @@ class PaymentService {
       };
     } catch (error: any) {
       console.error('M-Pesa processing error:', error);
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'FAILED',
         error: error.message,
         updatedAt: serverTimestamp(),
-      });
+      }));
       throw error;
     }
   }
@@ -244,12 +359,12 @@ class PaymentService {
       const result = await mpesaService.querySTKStatus(checkoutRequestId);
 
       if (result.success && result.status === 'COMPLETED') {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'COMPLETED',
           referenceNumber: `MPESA-${Date.now()}`,
           completedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        }));
         return;
       }
 
@@ -285,11 +400,11 @@ class PaymentService {
       );
 
       if (!paymentResult.success) {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'FAILED',
           error: paymentResult.error || 'Payment initiation failed',
           updatedAt: serverTimestamp(),
-        });
+        }));
         return {
           success: false,
           transactionId,
@@ -297,11 +412,11 @@ class PaymentService {
         };
       }
 
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'PENDING_VERIFICATION',
-        tigoTransactionId: paymentResult.transactionId,
+        tigoTransactionId: paymentResult.transactionId || '',
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       // Start polling for payment status
       if (paymentResult.transactionId) {
@@ -316,11 +431,11 @@ class PaymentService {
       };
     } catch (error: any) {
       console.error('Tigo Pesa processing error:', error);
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'FAILED',
         error: error.message,
         updatedAt: serverTimestamp(),
-      });
+      }));
       throw error;
     }
   }
@@ -336,12 +451,12 @@ class PaymentService {
       const result = await tigoPesaService.queryPayment(tigoTransactionId);
 
       if (result.success && result.status === 'COMPLETED') {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'COMPLETED',
           referenceNumber: `TIGO-${Date.now()}`,
           completedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        }));
         return;
       }
 
@@ -376,11 +491,11 @@ class PaymentService {
       );
 
       if (!paymentResult.success) {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'FAILED',
           error: paymentResult.error || 'Payment initiation failed',
           updatedAt: serverTimestamp(),
-        });
+        }));
         return {
           success: false,
           transactionId,
@@ -388,11 +503,11 @@ class PaymentService {
         };
       }
 
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'PENDING_VERIFICATION',
-        airtelTransactionId: paymentResult.transactionId,
+        airtelTransactionId: paymentResult.transactionId || '',
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       // Start polling for payment status
       if (paymentResult.transactionId) {
@@ -407,11 +522,11 @@ class PaymentService {
       };
     } catch (error: any) {
       console.error('Airtel Money processing error:', error);
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'FAILED',
         error: error.message,
         updatedAt: serverTimestamp(),
-      });
+      }));
       throw error;
     }
   }
@@ -427,12 +542,12 @@ class PaymentService {
       const result = await airtelMoneyService.queryPayment(airtelTransactionId);
 
       if (result.success && result.status === 'COMPLETED') {
-        await updateDoc(doc(firestore, 'transactions', transactionId), {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
           status: 'COMPLETED',
           referenceNumber: `AIRTEL-${Date.now()}`,
           completedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        }));
         return;
       }
 
@@ -445,26 +560,79 @@ class PaymentService {
   }
 
   /**
-   * Lipanamba Payment
+   * Lipanamba Payment (Tanzania Mobile Money)
+   * Requires: VITE_LIPANAMBA_API_KEY, VITE_LIPANAMBA_MERCHANT_ID
    */
   private async processLipanamba(
     request: PaymentRequest,
     transactionId: string
   ): Promise<PaymentResponse> {
     try {
-      // TODO: Integrate with Lipanamba API
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
-        status: 'PENDING_VERIFICATION',
-        updatedAt: serverTimestamp(),
+      const apiKey = import.meta.env.VITE_LIPANAMBA_API_KEY;
+      const merchantId = import.meta.env.VITE_LIPANAMBA_MERCHANT_ID;
+      const baseUrl = import.meta.env.VITE_LIPANAMBA_BASE_URL || 'https://api.lipanamba.com';
+
+      if (!apiKey || !merchantId) {
+        // Fallback to pending verification if keys not configured
+        console.warn('Lipanamba keys not configured. Payment will require manual verification.');
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+          status: 'PENDING_VERIFICATION',
+          updatedAt: serverTimestamp(),
+        }));
+
+        return {
+          success: true,
+          transactionId,
+          message: 'Payment pending verification. Please complete payment and wait for verification.',
+          requiresVerification: true,
+        };
+      }
+
+      // Initiate Lipanamba payment
+      const response = await fetch(`${baseUrl}/v1/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          merchantId,
+          amount: request.amount,
+          currency: request.currency,
+          phoneNumber: request.phoneNumber,
+          description: request.description,
+          reference: transactionId,
+          callbackUrl: `${window.location.origin}/payment/callback`,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Lipanamba payment initiation failed');
+      }
+
+      const paymentData = await response.json();
+
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+        status: 'PENDING_VERIFICATION',
+        lipanambaTransactionId: paymentData.transactionId,
+        updatedAt: serverTimestamp(),
+      }));
 
       return {
         success: true,
         transactionId,
-        message: 'Payment pending verification.',
+        referenceNumber: paymentData.transactionId,
+        message: paymentData.message || 'Payment request sent. Please complete on your phone.',
         requiresVerification: true,
       };
     } catch (error: any) {
+      console.error('Lipanamba payment error:', error);
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+        status: 'FAILED',
+        error: error.message || 'Lipanamba payment processing failed',
+        updatedAt: serverTimestamp(),
+      }));
       throw error;
     }
   }
@@ -478,10 +646,10 @@ class PaymentService {
   ): Promise<PaymentResponse> {
     try {
       // Bank transfers always require manual verification
-      await updateDoc(doc(firestore, 'transactions', transactionId), {
+      await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
         status: 'PENDING_VERIFICATION',
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return {
         success: true,

@@ -149,11 +149,11 @@ class NotificationService {
    */
   async createNotification(notification: Omit<AppNotification, 'id' | 'read' | 'createdAt'>): Promise<string> {
     try {
-      const notifRef = await addDoc(collection(firestore, 'notifications'), {
+      const notifRef = await addDoc(collection(firestore, 'notifications'), cleanFirestoreData({
         ...notification,
         read: false,
         createdAt: serverTimestamp(),
-      });
+      }));
 
       // Send SMS/Email if user preferences allow
       if (notification.userId) {
@@ -407,7 +407,7 @@ class NotificationService {
   ): Promise<void> {
     // In production, this would query all users with the role and send to each
     // For now, we'll just create a notification with recipientRole
-    await addDoc(collection(firestore, 'notifications'), {
+    await addDoc(collection(firestore, 'notifications'), cleanFirestoreData({
       recipientRole: role,
       type,
       title,
@@ -416,7 +416,7 @@ class NotificationService {
       data,
       read: false,
       createdAt: serverTimestamp(),
-    });
+    }));
   }
 
   /**

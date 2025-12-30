@@ -218,12 +218,12 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
 
   const handleToggleBookmark = async (e: React.MouseEvent, article: Article) => {
       e.stopPropagation();
-      if (!user.id) {
+      if (!user?.id || !article?.id) {
           notify('Please login to bookmark articles', 'info');
           return;
       }
       
-      const isBookmarked = bookmarkedArticleIds.includes(article.id);
+      const isBookmarked = Array.isArray(bookmarkedArticleIds) && bookmarkedArticleIds.includes(article.id);
       
       try {
           if (isBookmarked) {
@@ -235,9 +235,9 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
               );
               const bookmarkSnapshot = await getDocs(bookmarkQuery);
               
-              if (!bookmarkSnapshot.empty) {
+              if (!bookmarkSnapshot.empty && bookmarkSnapshot.docs.length > 0) {
                   await deleteDoc(bookmarkSnapshot.docs[0].ref);
-                  setBookmarkedArticleIds(prev => prev.filter(id => id !== article.id));
+                  setBookmarkedArticleIds(prev => Array.isArray(prev) ? prev.filter(id => id !== article.id) : []);
                   notify('Article removed from bookmarks', 'info');
               }
           } else {
@@ -245,17 +245,17 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
               await addDoc(collection(firestore, 'userBookmarks'), {
                   userId: user.id,
                   articleId: article.id,
-                  articleTitle: article.title,
-                  articleImage: article.image,
-                  articleAuthor: article.authorName,
+                  articleTitle: article.title || 'Untitled',
+                  articleImage: article.image || '',
+                  articleAuthor: article.authorName || 'Unknown',
                   createdAt: serverTimestamp()
               });
-              setBookmarkedArticleIds(prev => [...prev, article.id]);
+              setBookmarkedArticleIds(prev => Array.isArray(prev) ? [...prev, article.id] : [article.id]);
               notify('Article saved to bookmarks', 'success');
           }
-      } catch (error) {
+      } catch (error: any) {
           console.error('Bookmark error:', error);
-          notify('Failed to update bookmark', 'error');
+          notify(`Failed to update bookmark: ${error?.message || 'Unknown error'}`, 'error');
       }
   };
 

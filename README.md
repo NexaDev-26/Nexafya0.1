@@ -4,29 +4,53 @@ NexaFya is a comprehensive, medical-grade digital health ecosystem connecting pa
 
 ## Tech Stack
 
-- **Frontend**: React, TailwindCSS, Lucide Icons, Google Gemini AI
-- **Backend**: Node.js, Express.js
-- **Database**: MySQL, Prisma ORM
+- **Frontend**: React, TypeScript, Vite, TailwindCSS, Lucide Icons
+- **Backend**: Firebase (Firestore, Auth, Storage, Functions)
 - **AI**: Google Gemini API
+- **Deployment**: Vercel-ready
 
 ## Getting Started
 
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-2.  **Environment Setup**:
-    Create a `.env` file and add your keys:
-    ```env
-    API_KEY=your_google_gemini_api_key
-    DATABASE_URL="mysql://user:password@localhost:3306/nexafya"
-    ```
+2. **Environment Setup**:
+   See [ENV_SETUP.md](./ENV_SETUP.md) for complete environment variable configuration.
+   
+   Minimum required for local development:
+   - Firebase configuration (already configured in `lib/firebase.ts`)
+   - Gemini API key (optional, for AI features)
 
-3.  **Run Development Server**:
-    ```bash
-    npm run dev
-    ```
+3. **Run Development Server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for Production**:
+   ```bash
+   npm run build
+   ```
+
+## Deployment
+
+See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for detailed deployment instructions, or [QUICK_DEPLOY_TEST.md](./QUICK_DEPLOY_TEST.md) for quick testing deployment.
+
+## Key Features
+
+- ✅ User Authentication (Firebase Auth)
+- ✅ Real-time Database (Firestore)
+- ✅ AI-Powered Symptom Checker (Gemini AI)
+- ✅ Video Consultations (WebRTC)
+- ✅ E-Prescriptions
+- ✅ Trust Tier System for Doctors/Couriers
+- ✅ Payment Integration (M-Pesa, Stripe, PayPal, etc.)
+- ✅ NHIF Integration
+- ✅ Lab Test Booking
+- ✅ Support Tickets
+- ✅ Verification System
+- ✅ And much more!
 
 ## Git Initialization & Push
 

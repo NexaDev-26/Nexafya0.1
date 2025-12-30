@@ -36,6 +36,7 @@ import {
   HealthMetric,
   Courier 
 } from '../types';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 /**
  * Firebase Database Service
@@ -107,19 +108,19 @@ export const firebaseDb = {
         const userData = userSnap.exists() ? userSnap.data() : {};
         
         // Create new doctor document with user data and professional details
-        await setDoc(docRef, {
+        await setDoc(docRef, cleanFirestoreData({
           ...userData,
           ...details,
           id: doctorId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        }));
       } else {
         // Update existing document
-        await updateDoc(docRef, { 
+        await updateDoc(docRef, cleanFirestoreData({ 
           ...details, 
           updatedAt: serverTimestamp() 
-        });
+        }));
       }
       return true;
     } catch (e: any) {
@@ -155,10 +156,10 @@ export const firebaseDb = {
       if (!existingSnap.empty) {
         // Update existing review
         const existingDoc = existingSnap.docs[0];
-        await updateDoc(existingDoc.ref, {
+        await updateDoc(existingDoc.ref, cleanFirestoreData({
           ...reviewData,
           updatedAt: serverTimestamp()
-        });
+        }));
       } else {
         // Create new review
         await addDoc(reviewsRef, reviewData);
@@ -226,11 +227,11 @@ export const firebaseDb = {
       
       // Update doctor's rating
       const doctorRef = doc(firestore, 'doctors', doctorId);
-      await updateDoc(doctorRef, {
+      await updateDoc(doctorRef, cleanFirestoreData({
         rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
         ratingCount: count,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Update doctor rating error", e);
     }
@@ -250,24 +251,35 @@ export const firebaseDb = {
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        const scheduledAt = data.scheduledAt?.toDate() || new Date();
-        
-        return {
-          id: doc.id,
-          doctorName: data.doctorName || 'Specialist',
-          patientName: data.patientName || 'Patient',
-          date: scheduledAt.toLocaleDateString(),
-          time: scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: data.status,
-          paymentStatus: data.paymentStatus,
-          type: data.consultationType,
-          fee: data.fee,
-          notes: data.notes,
-          patientId: data.patientId,
-          doctorId: data.doctorId
-        };
-      });
+        try {
+          const data = doc.data() || {};
+          let scheduledAt: Date;
+          try {
+            scheduledAt = data.scheduledAt?.toDate() || new Date();
+            if (isNaN(scheduledAt.getTime())) scheduledAt = new Date();
+          } catch {
+            scheduledAt = new Date();
+          }
+          
+          return {
+            id: doc.id,
+            doctorName: data.doctorName || 'Specialist',
+            patientName: data.patientName || 'Patient',
+            date: scheduledAt.toLocaleDateString(),
+            time: scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: data.status || 'UPCOMING',
+            paymentStatus: data.paymentStatus || 'PENDING',
+            type: data.consultationType || 'VIDEO',
+            fee: Number(data.fee) || 0,
+            notes: data.notes || '',
+            patientId: data.patientId || '',
+            doctorId: data.doctorId || ''
+          };
+        } catch (err) {
+          console.error('Error mapping appointment:', err);
+          return null;
+        }
+      }).filter((apt): apt is Appointment => apt !== null);
     } catch (e) {
       console.error("DB: Appointments fetch error", e);
       return [];
@@ -300,7 +312,7 @@ export const firebaseDb = {
       const docRef = doc(firestore, 'appointments', id);
       const updates: any = { status, updatedAt: serverTimestamp() };
       if (notes) updates.notes = notes;
-      await updateDoc(docRef, updates);
+      await updateDoc(docRef, cleanFirestoreData(updates));
       return true;
     } catch (e) {
       console.error("Update appointment error", e);
@@ -395,28 +407,43 @@ export const firebaseDb = {
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title,
-          excerpt: data.excerpt,
-          content: data.content,
-          authorId: data.authorId,
-          authorName: data.authorName,
-          authorRole: data.authorRole,
-          category: data.category,
-          readTime: data.readTime || 5,
-          date: data.createdAt?.toDate().toLocaleDateString() || '',
-          likes: data.likes || 0,
-          views: data.views || 0,
-          image: data.image,
-          isPremium: data.isPremium || false,
-          price: data.price,
-          currency: data.currency,
-          status: data.status || 'published',
-          highlights: data.highlights
-        };
-      });
+        try {
+          const data = doc.data() || {};
+          let dateStr = '';
+          try {
+            const createdAt = data.createdAt?.toDate();
+            if (createdAt && !isNaN(createdAt.getTime())) {
+              dateStr = createdAt.toLocaleDateString();
+            }
+          } catch {
+            dateStr = new Date().toLocaleDateString();
+          }
+          
+          return {
+            id: doc.id,
+            title: data.title || 'Untitled',
+            excerpt: data.excerpt || '',
+            content: data.content || '',
+            authorId: data.authorId || '',
+            authorName: data.authorName || 'Unknown',
+            authorRole: data.authorRole || UserRole.DOCTOR,
+            category: data.category || 'General',
+            readTime: Number(data.readTime) || 5,
+            date: dateStr,
+            likes: Number(data.likes) || 0,
+            views: Number(data.views) || 0,
+            image: data.image || '',
+            isPremium: Boolean(data.isPremium),
+            price: Number(data.price) || 0,
+            currency: data.currency || 'TZS',
+            status: data.status || 'published',
+            highlights: data.highlights || ''
+          };
+        } catch (err) {
+          console.error('Error mapping article:', err);
+          return null;
+        }
+      }).filter((article): article is Article => article !== null);
     } catch (e) {
       console.error("Fetch articles error", e);
       return [];
@@ -441,7 +468,7 @@ export const firebaseDb = {
   updateArticle: async (id: string, article: any) => {
     try {
       const docRef = doc(firestore, 'articles', id);
-      await updateDoc(docRef, { ...article, updatedAt: serverTimestamp() });
+      await updateDoc(docRef, cleanFirestoreData({ ...article, updatedAt: serverTimestamp() }));
       return { id, ...article };
     } catch (e) {
       console.error("Update article error", e);
@@ -509,7 +536,24 @@ export const firebaseDb = {
     try {
       const medicinesRef = firestoreCollection(firestore, 'medicines');
       const querySnapshot = await getDocs(medicinesRef);
-      return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Medicine));
+      return querySnapshot.docs.map((doc) => {
+        try {
+          const data = doc.data() || {};
+          return {
+            id: doc.id,
+            name: data.name || 'Unknown Medicine',
+            category: data.category || 'General',
+            price: Number(data.price) || 0,
+            stock: Number(data.stock) || 0,
+            description: data.description || '',
+            image: data.image || '',
+            ...data
+          } as Medicine;
+        } catch (err) {
+          console.error('Error mapping medicine:', err);
+          return null;
+        }
+      }).filter((med): med is Medicine => med !== null);
     } catch (e) {
       console.error("Fetch medicines error", e);
       return [];
@@ -612,11 +656,11 @@ export const firebaseDb = {
       }
 
       // Update to dispensed status
-      await updateDoc(docRef, {
+      await updateDoc(docRef, cleanFirestoreData({
         status: 'DISPENSED',
         dispensed_by: pharmacyId,
         dispensedAt: serverTimestamp()
-      });
+      }));
       return true;
     } catch (e) {
       console.error("Dispense prescription error", e);
@@ -650,20 +694,35 @@ export const firebaseDb = {
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          chw_id: data.chw_id,
-          head_of_household: data.head_of_household,
-          location_name: data.location_name,
-          visit_date: data.visit_date?.toDate().toISOString() || '',
-          risk_level: data.risk_level,
-          notes: data.notes,
-          maternal_status: data.maternal_status,
-          location_lat: data.location_lat,
-          location_lng: data.location_lng
-        };
-      });
+        try {
+          const data = doc.data() || {};
+          let visitDate = '';
+          try {
+            const date = data.visit_date?.toDate();
+            if (date && !isNaN(date.getTime())) {
+              visitDate = date.toISOString();
+            }
+          } catch {
+            visitDate = new Date().toISOString();
+          }
+          
+          return {
+            id: doc.id,
+            chw_id: data.chw_id || '',
+            head_of_household: data.head_of_household || '',
+            location_name: data.location_name || '',
+            visit_date: visitDate,
+            risk_level: data.risk_level || 'Routine',
+            notes: data.notes || '',
+            maternal_status: data.maternal_status || undefined,
+            location_lat: Number(data.location_lat) || undefined,
+            location_lng: Number(data.location_lng) || undefined
+          };
+        } catch (err) {
+          console.error('Error mapping household visit:', err);
+          return null;
+        }
+      }).filter((visit): visit is HouseholdVisit => visit !== null);
     } catch (e) {
       console.error("Fetch household visits error", e);
       return [];
@@ -748,7 +807,7 @@ export const firebaseDb = {
   verifyTransaction: async (id: string, status: string) => {
     try {
       const docRef = doc(firestore, 'transactions', id);
-      await updateDoc(docRef, { status, updatedAt: serverTimestamp() });
+      await updateDoc(docRef, cleanFirestoreData({ status, updatedAt: serverTimestamp() }));
       return true;
     } catch (e) {
       console.error("Verify transaction error", e);
@@ -844,23 +903,23 @@ export const firebaseDb = {
       }
 
       // Update new user with referrer info
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         referredBy: referrerId,
         referralAppliedAt: serverTimestamp()
-      });
+      }));
 
       // Award credits to both users (referrer gets 20% discount credit, new user gets 15% discount credit)
-      await updateDoc(referrerDoc.ref, {
+      await updateDoc(referrerDoc.ref, cleanFirestoreData({
         referralCount: increment(1),
         referralCredits: increment(2000), // 2000 points = 20% off next consultation (assuming 10000 TZS base)
         updatedAt: serverTimestamp()
-      });
+      }));
 
       // Award new user credit
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         referralCredits: 1500, // 1500 points = 15% off first consultation
         updatedAt: serverTimestamp()
-      });
+      }));
 
       // Record referral
       const referralsRef = firestoreCollection(firestore, 'referrals');
@@ -1038,10 +1097,10 @@ export const firebaseDb = {
   updateTrustTierConfig: async (id: string, updates: Partial<TrustTierConfig>) => {
     try {
       const configRef = doc(firestore, 'trustTierConfigs', id);
-      await updateDoc(configRef, {
+      await updateDoc(configRef, cleanFirestoreData({
         ...updates,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Update trust tier config error", e);
       throw e;
@@ -1065,22 +1124,22 @@ export const firebaseDb = {
   assignUserTier: async (userId: string, assignment: Omit<any, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const assignmentRef = doc(firestore, 'userTierAssignments', userId);
-      await setDoc(assignmentRef, {
+      await setDoc(assignmentRef, cleanFirestoreData({
         ...assignment,
         userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      }));
       
       // Update doctor/courier with trust tier info
       const userRef = assignment.userRole === 'DOCTOR' 
         ? doc(firestore, 'doctors', userId)
         : doc(firestore, 'users', userId);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         trustTier: assignment.trustTier,
         isTrusted: true,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Assign user tier error", e);
       throw e;
@@ -1093,14 +1152,14 @@ export const firebaseDb = {
       const nextPaymentDate = new Date();
       nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
       
-      await updateDoc(assignmentRef, {
+      await updateDoc(assignmentRef, cleanFirestoreData({
         status: 'ACTIVE',
         isTrialActive: false,
         activationDate: new Date().toISOString(),
         nextPaymentDate: nextPaymentDate.toISOString(),
         activatedBy,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Activate user tier error", e);
       throw e;
@@ -1110,10 +1169,10 @@ export const firebaseDb = {
   updateDoctorVerificationPermission: async (doctorId: string, canVerify: boolean) => {
     try {
       const doctorRef = doc(firestore, 'doctors', doctorId);
-      await updateDoc(doctorRef, {
+      await updateDoc(doctorRef, cleanFirestoreData({
         canVerifyArticles: canVerify,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Update doctor verification permission error", e);
       throw e;
@@ -1124,11 +1183,11 @@ export const firebaseDb = {
   assignArticleForVerification: async (articleId: string, doctorId: string) => {
     try {
       const articleRef = doc(firestore, 'articles', articleId);
-      await updateDoc(articleRef, {
+      await updateDoc(articleRef, cleanFirestoreData({
         status: 'pending_verification',
         pendingVerificationBy: doctorId,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Assign article for verification error", e);
       throw e;
@@ -1138,7 +1197,7 @@ export const firebaseDb = {
   verifyArticle: async (articleId: string, verifierId: string, verifierName: string, notes?: string) => {
     try {
       const articleRef = doc(firestore, 'articles', articleId);
-      await updateDoc(articleRef, {
+      await updateDoc(articleRef, cleanFirestoreData({
         status: 'verified',
         verifiedBy: verifierId,
         verifiedByName: verifierName,
@@ -1146,7 +1205,7 @@ export const firebaseDb = {
         verificationNotes: notes || '',
         pendingVerificationBy: null,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Verify article error", e);
       throw e;
@@ -1156,14 +1215,14 @@ export const firebaseDb = {
   rejectArticle: async (articleId: string, verifierId: string, reason: string) => {
     try {
       const articleRef = doc(firestore, 'articles', articleId);
-      await updateDoc(articleRef, {
+      await updateDoc(articleRef, cleanFirestoreData({
         status: 'rejected',
         verifiedBy: verifierId,
         rejectionReason: reason,
         verifiedAt: new Date().toISOString(),
         pendingVerificationBy: null,
         updatedAt: serverTimestamp()
-      });
+      }));
     } catch (e) {
       console.error("Reject article error", e);
       throw e;

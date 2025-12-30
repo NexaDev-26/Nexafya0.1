@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export interface LabTest {
   id?: string;
@@ -271,12 +272,12 @@ class LabService {
       });
 
       // Update booking status
-      await updateDoc(bookingRef, {
+      await updateDoc(bookingRef, cleanFirestoreData({
         status: 'COMPLETED',
         resultUrl: resultFileUrl,
         resultReadyDate: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return resultRef.id;
     } catch (error) {
@@ -327,11 +328,11 @@ class LabService {
         sharedWith.push(doctorId);
       }
 
-      await updateDoc(resultRef, {
+      await updateDoc(resultRef, cleanFirestoreData({
         sharedWith,
         status: 'SHARED',
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch (error) {
       console.error('Share result error:', error);
       throw error;

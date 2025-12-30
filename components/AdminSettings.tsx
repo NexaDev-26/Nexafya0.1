@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db as firestore, storage } from '../lib/firebase';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 interface PlatformSettings {
   appName: string;
@@ -56,8 +57,15 @@ export const AdminSettings: React.FC = () => {
 
   const loadSettings = async () => {
     try {
-      const settingsRef = doc(firestore, 'platformSettings', 'main');
-      const settingsSnap = await getDoc(settingsRef);
+      // Try systemSettings first (new format), fallback to platformSettings (old format)
+      let settingsRef = doc(firestore, 'systemSettings', 'main');
+      let settingsSnap = await getDoc(settingsRef);
+      
+      if (!settingsSnap.exists()) {
+        settingsRef = doc(firestore, 'platformSettings', 'main');
+        settingsSnap = await getDoc(settingsRef);
+      }
+      
       if (settingsSnap.exists()) {
         const data = settingsSnap.data() as Partial<PlatformSettings>;
         // Merge with defaults to ensure all required fields exist
@@ -163,22 +171,54 @@ export const AdminSettings: React.FC = () => {
         finalLogoUrl = logoPreview;
       }
       
-      // Ensure all financial fields have valid numbers
+      // Ensure all financial fields have valid numbers and no undefined values
       const settingsToSave: PlatformSettings = {
-        ...settings,
-        appLogo: finalLogoUrl || settings.appLogo,
+        appName: settings.appName || 'NexaFya',
+        appLogo: finalLogoUrl || settings.appLogo || '',
+        primaryColor: settings.primaryColor || '#0066CC',
+        secondaryColor: settings.secondaryColor || '#10B981',
         commissionRate: typeof settings.commissionRate === 'number' ? settings.commissionRate : 15,
         transactionFee: typeof settings.transactionFee === 'number' ? settings.transactionFee : 2.5,
         minWithdrawal: typeof settings.minWithdrawal === 'number' ? settings.minWithdrawal : 5000,
         maxWithdrawal: typeof settings.maxWithdrawal === 'number' ? settings.maxWithdrawal : 5000000,
+        mpesaShortcode: settings.mpesaShortcode || '',
+        tigoPesaShortcode: settings.tigoPesaShortcode || '',
+        airtelMoneyShortcode: settings.airtelMoneyShortcode || '',
+        smsEnabled: settings.smsEnabled ?? true,
+        emailEnabled: settings.emailEnabled ?? true,
+        maintenanceMode: settings.maintenanceMode ?? false,
+        maintenanceMessage: settings.maintenanceMessage || '',
       };
       
-      const settingsRef = doc(firestore, 'platformSettings', 'main');
-      await setDoc(settingsRef, {
+      // Prepare system settings (only include appLogo if it has a value)
+      const systemSettingsData: any = {
+        appName: settingsToSave.appName,
+        primaryColor: settingsToSave.primaryColor,
+        secondaryColor: settingsToSave.secondaryColor,
+        updatedBy: user.id,
+        updatedAt: serverTimestamp(),
+      };
+      
+      // Only include appLogo if it has a value
+      if (settingsToSave.appLogo && settingsToSave.appLogo.trim() !== '') {
+        systemSettingsData.appLogo = settingsToSave.appLogo;
+      }
+      
+      // Save to both systemSettings (new) and platformSettings (legacy) for compatibility
+      const systemSettingsRef = doc(firestore, 'systemSettings', 'main');
+      const platformSettingsRef = doc(firestore, 'platformSettings', 'main');
+      
+      // Prepare platform settings (remove undefined values using helper)
+      const platformSettingsData = cleanFirestoreData({
         ...settingsToSave,
         updatedBy: user.id,
         updatedAt: serverTimestamp(),
-      }, { merge: true });
+      });
+      
+      await Promise.all([
+        setDoc(systemSettingsRef, systemSettingsData, { merge: true }),
+        setDoc(platformSettingsRef, platformSettingsData, { merge: true })
+      ]);
       notify('Settings saved successfully', 'success');
       logAdminAction('Updated platform settings');
     } catch (error: any) {

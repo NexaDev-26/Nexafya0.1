@@ -149,10 +149,10 @@ class WebRTCService {
       `${Date.now()}-${message.from}`
     );
 
-    await setDoc(signalingRef, {
+    await setDoc(signalingRef, cleanFirestoreData({
       ...message,
       timestamp: serverTimestamp(),
-    });
+    }));
   }
 
   /**

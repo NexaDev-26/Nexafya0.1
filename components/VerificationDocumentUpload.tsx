@@ -6,6 +6,7 @@ import { UserRole, VerificationDocument, UserVerification } from '../types';
 import { storage, db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 interface VerificationDocumentUploadProps {
   onComplete?: () => void;
@@ -139,12 +140,12 @@ export const VerificationDocumentUpload: React.FC<VerificationDocumentUploadProp
         const currentStatus = verificationDoc.data().verificationStatus;
         const newStatus = currentStatus === 'Unverified' ? 'Pending' : currentStatus;
         
-        await updateDoc(verificationDoc.ref, {
+        await updateDoc(verificationDoc.ref, cleanFirestoreData({
           documents: updatedDocs,
           verificationStatus: newStatus,
           submittedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        }));
 
         setDocuments(updatedDocs);
         setVerificationStatus(prev => prev ? {
@@ -168,10 +169,10 @@ export const VerificationDocumentUpload: React.FC<VerificationDocumentUploadProp
     
     try {
       // Remove from Firestore
-      await updateDoc(doc(firestore, 'verificationDocuments', docId), {
+      await updateDoc(doc(firestore, 'verificationDocuments', docId), cleanFirestoreData({
         status: 'Rejected',
         rejectionReason: 'Deleted by user'
-      });
+      }));
 
       // Update verification record
       const verificationQuery = query(
@@ -185,10 +186,10 @@ export const VerificationDocumentUpload: React.FC<VerificationDocumentUploadProp
         const currentDocs = (verificationDoc.data().documents || []) as VerificationDocument[];
         const updatedDocs = currentDocs.filter(d => d.id !== docId);
         
-        await updateDoc(verificationDoc.ref, {
+        await updateDoc(verificationDoc.ref, cleanFirestoreData({
           documents: updatedDocs,
           updatedAt: serverTimestamp()
-        });
+        }));
 
         setDocuments(updatedDocs);
       }

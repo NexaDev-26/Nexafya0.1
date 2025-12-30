@@ -15,6 +15,7 @@ import { storage, storageRefs, db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useTransactions } from '../hooks/useFirestore';
 import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, Timestamp } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import { SubscriptionPackage } from '../types';
 import { firebaseDb } from '../services/firebaseDb';
 import { notificationService } from '../services/notificationService';
@@ -762,11 +763,11 @@ export const Profile: React.FC<ProfileProps> = ({
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={async () => {
-                                                                    await updateDoc(doc(firestore, 'transactions', pay.id), { 
+                                                                    await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({ 
                                                                         status: 'REJECTED', 
                                                                         verifiedAt: serverTimestamp(),
                                                                         verifiedBy: user.id
-                                                                    });
+                                                                    }));
                                                                     setPendingPayments(prev => prev.filter(p => p.id !== pay.id));
                                                                     notify('Payment rejected', 'info');
                                                                 }}
@@ -777,16 +778,16 @@ export const Profile: React.FC<ProfileProps> = ({
                                                             <button
                                                                 onClick={async () => {
                                                                     try {
-                                                                        await updateDoc(doc(firestore, 'transactions', pay.id), { 
+                                                                        await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({ 
                                                                             status: 'VERIFIED', 
                                                                             verifiedAt: serverTimestamp(),
                                                                             verifiedBy: user.id
-                                                                        });
+                                                                        }));
 
                                                                         // Grant article access after verification (for doctors)
                                                                         if (pay.itemType === 'article' && pay.itemId && pay.userId) {
                                                                             const accessId = `${pay.itemId}_${pay.userId}`;
-                                                                            await updateDoc(doc(firestore, 'transactions', pay.id), { accessId });
+                                                                            await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({ accessId }));
                                                                             await addDoc(collection(firestore, 'articleAccess'), {
                                                                                 articleId: pay.itemId,
                                                                                 userId: pay.userId,
@@ -823,11 +824,11 @@ export const Profile: React.FC<ProfileProps> = ({
 
                                                                         // Mark consultation as paid after verification (for doctors)
                                                                         if ((pay.itemType === 'consultation' || pay.itemType === 'appointment') && pay.itemId && pay.userId) {
-                                                                            await updateDoc(doc(firestore, 'appointments', pay.itemId), {
+                                                                            await updateDoc(doc(firestore, 'appointments', pay.itemId), cleanFirestoreData({
                                                                                 paymentStatus: 'PAID',
                                                                                 paidAt: serverTimestamp(),
                                                                                 updatedAt: serverTimestamp()
-                                                                            } as any);
+                                                                            }));
                                                                             
                                                                             // Send notification to user
                                                                             await notificationService.sendPaymentNotification(
@@ -859,16 +860,16 @@ export const Profile: React.FC<ProfileProps> = ({
                                                                             try {
                                                                                 // Update order status to paid
                                                                                 const orderRef = doc(firestore, 'orders', pay.orderId);
-                                                                                await updateDoc(orderRef, {
+                                                                                await updateDoc(orderRef, cleanFirestoreData({
                                                                                     paymentStatus: 'PAID',
                                                                                     paidAt: serverTimestamp(),
                                                                                     updatedAt: serverTimestamp()
-                                                                                } as any);
+                                                                                }));
                                                                                 
                                                                                 // Also update transaction with order reference
-                                                                                await updateDoc(doc(firestore, 'transactions', pay.id), {
+                                                                                await updateDoc(doc(firestore, 'transactions', pay.id), cleanFirestoreData({
                                                                                     orderId: pay.orderId
-                                                                                });
+                                                                                }));
                                                                                 
                                                                                 // Send notification to user
                                                                                 await notificationService.sendPaymentNotification(

@@ -5,6 +5,7 @@
 
 import { db as firestore } from '../lib/firebase';
 import { collection, addDoc, doc, getDoc, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export interface NHIFMember {
   memberNumber: string;
@@ -43,15 +44,13 @@ class NHIFService {
     error?: string;
   }> {
     try {
-      // TODO: Integrate with actual NHIF API
-      // const response = await fetch('https://api.nhif.go.tz/verify', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ memberNumber: request.memberNumber, ... })
-      // });
+      const apiKey = import.meta.env.VITE_NHIF_API_KEY;
+      const baseUrl = import.meta.env.VITE_NHIF_BASE_URL || 'https://api.nhif.go.tz';
 
-      // For now, simulate verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // If API key is not configured, use simulation mode
+      if (!apiKey) {
+        console.warn('NHIF API key not configured. Using simulation mode.');
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Mock NHIF member data
       const mockMember: NHIFMember = {
@@ -90,25 +89,92 @@ class NHIFService {
         ],
       };
 
+        // Save NHIF record to Firestore
+        const nhifRef = doc(firestore, 'nhifMembers', request.userId);
+        await setDoc(nhifRef, cleanFirestoreData({
+          ...mockMember,
+          userId: request.userId,
+          verifiedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }));
+
+        return {
+          success: true,
+          member: mockMember,
+        };
+      }
+
+      // Real NHIF API integration
+      const response = await fetch(`${baseUrl}/v1/members/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          memberNumber: request.memberNumber,
+          fullName: request.fullName,
+          dateOfBirth: request.dateOfBirth,
+          phoneNumber: request.phoneNumber,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return {
+          success: false,
+          error: errorData.message || 'NHIF verification failed',
+        };
+      }
+
+      const nhifData = await response.json();
+
+      // Map NHIF API response to our NHIFMember interface
+      const member: NHIFMember = {
+        memberNumber: nhifData.memberNumber || request.memberNumber,
+        fullName: nhifData.fullName || request.fullName,
+        dateOfBirth: nhifData.dateOfBirth || request.dateOfBirth,
+        phoneNumber: nhifData.phoneNumber || request.phoneNumber,
+        status: nhifData.status || 'ACTIVE',
+        coverageType: nhifData.coverageType || 'INDIVIDUAL',
+        expiryDate: nhifData.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        benefits: nhifData.benefits || [
+          {
+            type: 'CONSULTATION',
+            coverage: 80,
+            annualLimit: 500000,
+            usedAmount: 0,
+          },
+          {
+            type: 'MEDICATION',
+            coverage: 70,
+            annualLimit: 1000000,
+            usedAmount: 0,
+          },
+        ],
+        dependents: nhifData.dependents || [],
+      };
+
       // Save NHIF record to Firestore
       const nhifRef = doc(firestore, 'nhifMembers', request.userId);
-      await setDoc(nhifRef, {
-        ...mockMember,
+      await setDoc(nhifRef, cleanFirestoreData({
+        ...member,
         userId: request.userId,
         verifiedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return {
         success: true,
-        member: mockMember,
+        member,
       };
     } catch (error: any) {
       console.error('NHIF verification error:', error);
       return {
         success: false,
-        error: error.message || 'Failed to verify NHIF membership',
+        error: error.message || 'NHIF verification failed',
       };
     }
   }

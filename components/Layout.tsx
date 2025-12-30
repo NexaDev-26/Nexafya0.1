@@ -34,6 +34,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 import { MobileBottomNav } from './MobileBottomNav';
 import { notificationService } from '../services/notificationService';
 import { useKeyboardShortcuts, createCommonShortcuts } from '../hooks/useKeyboardShortcuts';
+import { LogoIcon } from './LogoIcon';
 
 interface LayoutProps {
   user: User;
@@ -183,12 +184,10 @@ export const Layout: React.FC<LayoutProps> = ({
         <div className="h-full flex flex-col p-6">
           {/* Logo */}
           <div className="flex items-center gap-3 px-2 mb-10">
-            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-              <Activity className="text-white" size={24} />
-            </div>
+            <LogoIcon className="w-10 h-10" />
             <div>
-              <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white leading-none">NexaFya</h1>
-              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Health</span>
+              <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white leading-none transition-colors">NexaFya</h1>
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest transition-colors">Health</span>
             </div>
           </div>
 

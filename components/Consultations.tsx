@@ -111,15 +111,28 @@ export const Consultations: React.FC<ConsultationsProps> = ({
   }, [currentMonth]);
 
   const filteredCalendarApts = useMemo(() => {
+      if (!Array.isArray(appointments)) return [];
       return appointments.filter(apt => {
-          const matchesSearch = apt.patientName.toLowerCase().includes(calendarSearch.toLowerCase());
-          const aptDate = new Date(apt.date);
-          
-          let matchesRange = true;
-          if (dateRange.start) matchesRange = matchesRange && aptDate >= new Date(dateRange.start);
-          if (dateRange.end) matchesRange = matchesRange && aptDate <= new Date(dateRange.end);
-          
-          return matchesSearch && matchesRange;
+          try {
+              const matchesSearch = (apt?.patientName || '').toLowerCase().includes(calendarSearch.toLowerCase());
+              if (!apt?.date) return false;
+              const aptDate = new Date(apt.date);
+              if (isNaN(aptDate.getTime())) return false;
+              
+              let matchesRange = true;
+              if (dateRange.start) {
+                  const startDate = new Date(dateRange.start);
+                  matchesRange = matchesRange && !isNaN(startDate.getTime()) && aptDate >= startDate;
+              }
+              if (dateRange.end) {
+                  const endDate = new Date(dateRange.end);
+                  matchesRange = matchesRange && !isNaN(endDate.getTime()) && aptDate <= endDate;
+              }
+              
+              return matchesSearch && matchesRange;
+          } catch {
+              return false;
+          }
       });
   }, [appointments, calendarSearch, dateRange]);
 

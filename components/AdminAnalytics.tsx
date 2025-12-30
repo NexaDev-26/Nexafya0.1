@@ -182,46 +182,75 @@ export const AdminAnalytics: React.FC = () => {
       totalUsers: 0,
       activeUsers: 0,
       totalRevenue: 0,
+      monthlyRevenue: 0,
+      totalDoctors: 0,
       activeDoctors: 0,
-      userGrowth: '0',
-      revenueGrowth: '0',
+      userGrowth: { today: 0, thisWeek: 0, thisMonth: 0 },
+      revenueBreakdown: { consultations: 0, pharmacy: 0, subscriptions: 0, articles: 0 },
+      usersByRole: {},
     };
+    
+    // Safely get values with defaults
+    const totalUsers = Number(stats.totalUsers) || 0;
+    const activeUsers = Number(stats.activeUsers) || 0;
+    const totalRevenue = Number(stats.totalRevenue) || 0;
+    const totalDoctors = Number(stats.totalDoctors) || Number(stats.activeDoctors) || 0;
+    const userGrowthThisMonth = stats.userGrowth?.thisMonth || 0;
+    const revenueGrowth = stats.monthlyRevenue > 0 ? ((stats.monthlyRevenue / Math.max(totalRevenue, 1)) * 100).toFixed(1) : '0';
     
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} icon={<Users size={24} />} trend={`+${stats.userGrowth}% growth`} />
-            <StatCard title="Total Revenue" value={`TZS ${stats.totalRevenue.toLocaleString()}`} icon={<DollarSign size={24} />} trend={`+${stats.revenueGrowth}% growth`} />
-            <StatCard title="Active Doctors" value={stats.activeDoctors.toString()} icon={<Activity size={24} />} trend={`${stats.usersByRole?.DOCTOR || 0} total`} />
-            <StatCard title="Active Users" value={stats.activeUsers.toLocaleString()} icon={<CheckCircle size={24} />} trend={`${stats.totalUsers > 0 ? ((stats.activeUsers / stats.totalUsers) * 100).toFixed(1) : 0}% of total`} />
+            <StatCard title="Total Users" value={totalUsers.toLocaleString()} icon={<Users size={24} />} trend={`+${userGrowthThisMonth} this month`} />
+            <StatCard title="Total Revenue" value={`TZS ${totalRevenue.toLocaleString()}`} icon={<DollarSign size={24} />} trend={`TZS ${(Number(stats.monthlyRevenue) || 0).toLocaleString()} this month`} />
+            <StatCard title="Total Doctors" value={totalDoctors.toString()} icon={<Activity size={24} />} trend={`${totalDoctors} verified doctors`} />
+            <StatCard title="Active Users" value={activeUsers.toLocaleString()} icon={<CheckCircle size={24} />} trend={`${totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : 0}% of total`} />
           </div>
           
           {/* Role Distribution */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            {stats.usersByRole && Object.entries(stats.usersByRole).map(([role, count]: [string, any]) => (
-              <div key={role} className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">{role}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{count}</p>
-              </div>
-            ))}
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Patients</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalPatients) || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Doctors</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalDoctors) || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Pharmacies</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalPharmacies) || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Couriers</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalCouriers) || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CHWs</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{Number(stats.totalCHWs) || 0}</p>
+            </div>
+            <div className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Total</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</p>
+            </div>
           </div>
           
           {/* Revenue Breakdown */}
-          {stats.revenueByType && (
+          {stats.revenueBreakdown && (
             <div className="bg-white dark:bg-[#0F172A] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50 p-6">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">Revenue Breakdown</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                   <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Consultations</p>
-                  <p className="text-xl font-bold text-blue-700 dark:text-blue-300">TZS {stats.revenueByType.consultations.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-blue-700 dark:text-blue-300">TZS {(Number(stats.revenueBreakdown.consultations) || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                   <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Pharmacy</p>
-                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">TZS {stats.revenueByType.pharmacy.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">TZS {(Number(stats.revenueBreakdown.pharmacy) || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
                   <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Subscriptions</p>
-                  <p className="text-xl font-bold text-purple-700 dark:text-purple-300">TZS {stats.revenueByType.subscriptions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-purple-700 dark:text-purple-300">TZS {(Number(stats.revenueBreakdown.subscriptions) || 0).toLocaleString()}</p>
                 </div>
               </div>
             </div>

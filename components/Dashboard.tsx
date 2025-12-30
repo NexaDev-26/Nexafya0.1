@@ -61,19 +61,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
       if (!user || user.role !== UserRole.DOCTOR) return;
       try {
         const allArticles = await db.getArticles();
-        const my = allArticles.filter(a => a.authorId === user.id);
-        const totalViews = my.reduce((sum, a) => sum + (a.views || 0), 0);
-        const top = [...my].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
-        setDoctorArticleViews({ total: totalViews, topTitle: top?.title || '', topViews: top?.views || 0 });
+        const my = Array.isArray(allArticles) ? allArticles.filter(a => a?.authorId === user.id) : [];
+        const totalViews = my.reduce((sum, a) => sum + (Number(a?.views) || 0), 0);
+        const top = my.length > 0 ? [...my].sort((a, b) => (Number(b?.views) || 0) - (Number(a?.views) || 0))[0] : null;
+        setDoctorArticleViews({ total: totalViews, topTitle: top?.title || '', topViews: Number(top?.views) || 0 });
 
         // Earnings: from transactions (fallback to completed appointments fees if no transactions)
-        const txs = await (db as any).getPendingTransactions?.() ?? [];
-        const mine = Array.isArray(txs) ? txs.filter((t: any) => t.recipientId === user.id && (t.status === 'VERIFIED' || t.status === 'COMPLETED' || t.status === 'APPROVED')) : [];
-        const articleE = mine.filter((t: any) => t.itemType === 'article').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-        const consultE = mine.filter((t: any) => t.itemType === 'consultation').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-        setDoctorEarnings({ articles: articleE, consultations: consultE });
+        try {
+          const txs = await (db as any).getPendingTransactions?.() ?? [];
+          const mine = Array.isArray(txs) ? txs.filter((t: any) => t?.recipientId === user.id && (t?.status === 'VERIFIED' || t?.status === 'COMPLETED' || t?.status === 'APPROVED')) : [];
+          const articleE = mine.filter((t: any) => t?.itemType === 'article').reduce((s: number, t: any) => s + Number(t?.amount || 0), 0);
+          const consultE = mine.filter((t: any) => t?.itemType === 'consultation').reduce((s: number, t: any) => s + Number(t?.amount || 0), 0);
+          setDoctorEarnings({ articles: articleE, consultations: consultE });
+        } catch (txError) {
+          console.error('Error loading doctor earnings:', txError);
+          setDoctorEarnings({ articles: 0, consultations: 0 });
+        }
       } catch (e) {
-        console.error(e);
+        console.error('Error loading doctor stats:', e);
+        setDoctorArticleViews({ total: 0, topTitle: '', topViews: 0 });
+        setDoctorEarnings({ articles: 0, consultations: 0 });
       }
     };
     loadDoctorStats();

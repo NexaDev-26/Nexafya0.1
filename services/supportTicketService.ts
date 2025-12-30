@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import { UserRole } from '../types';
 
 export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
@@ -79,14 +80,14 @@ class SupportTicketService {
     try {
       const ticketNumber = this.generateTicketNumber();
 
-      const ticketRef = await addDoc(collection(firestore, 'supportTickets'), {
+      const ticketRef = await addDoc(collection(firestore, 'supportTickets'), cleanFirestoreData({
         ...ticket,
         ticketNumber,
         status: 'OPEN' as TicketStatus,
         messages: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       return ticketRef.id;
     } catch (error) {
@@ -234,10 +235,10 @@ class SupportTicketService {
 
       messages.push(newMessage);
 
-      await updateDoc(ticketRef, {
+      await updateDoc(ticketRef, cleanFirestoreData({
         messages,
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch (error) {
       console.error('Add message error:', error);
       throw error;
@@ -265,7 +266,7 @@ class SupportTicketService {
         updates.closedAt = serverTimestamp();
       }
 
-      await updateDoc(ticketRef, updates);
+      await updateDoc(ticketRef, cleanFirestoreData(updates));
     } catch (error) {
       console.error('Update ticket status error:', error);
       throw error;
@@ -282,12 +283,12 @@ class SupportTicketService {
   ): Promise<void> {
     try {
       const ticketRef = doc(firestore, 'supportTickets', ticketId);
-      await updateDoc(ticketRef, {
+      await updateDoc(ticketRef, cleanFirestoreData({
         assignedTo,
         assignedToName,
         status: 'IN_PROGRESS',
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch (error) {
       console.error('Assign ticket error:', error);
       throw error;
@@ -300,10 +301,10 @@ class SupportTicketService {
   async updatePriority(ticketId: string, priority: TicketPriority): Promise<void> {
     try {
       const ticketRef = doc(firestore, 'supportTickets', ticketId);
-      await updateDoc(ticketRef, {
+      await updateDoc(ticketRef, cleanFirestoreData({
         priority,
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch (error) {
       console.error('Update priority error:', error);
       throw error;

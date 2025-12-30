@@ -7,14 +7,15 @@ import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 // Firebase configuration
+// Uses environment variables if available, falls back to hardcoded values for development
 const firebaseConfig = {
-  apiKey: "AIzaSyA6R40s-SVIKfjOQ-7-q8fXNBD7TrwQ9qo",
-  authDomain: "nexafya.firebaseapp.com",
-  projectId: "nexafya",
-  storageBucket: "nexafya.firebasestorage.app",
-  messagingSenderId: "123250180152",
-  appId: "1:123250180152:web:5718f4ba4bb477ef0d66cd",
-  measurementId: "G-5QL5G79198"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA6R40s-SVIKfjOQ-7-q8fXNBD7TrwQ9qo",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "nexafya.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "nexafya",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "nexafya.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123250180152",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123250180152:web:5718f4ba4bb477ef0d66cd",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-5QL5G79198"
 };
 
 // Initialize Firebase

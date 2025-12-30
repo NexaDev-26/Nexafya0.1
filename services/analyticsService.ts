@@ -71,11 +71,20 @@ class AnalyticsService {
       ]);
 
       // Get active users (logged in within last 30 days)
-      const activeUsersQuery = query(
-        collection(firestore, 'users'),
-        where('lastLoginAt', '>=', Timestamp.fromDate(monthAgo))
-      );
-      const activeUsersSnapshot = await getCountFromServer(activeUsersQuery);
+      // Note: This query may fail if lastLoginAt field doesn't exist on all users
+      let activeUsersCount = 0;
+      try {
+        const activeUsersQuery = query(
+          collection(firestore, 'users'),
+          where('lastLoginAt', '>=', Timestamp.fromDate(monthAgo))
+        );
+        const activeUsersSnapshot = await getCountFromServer(activeUsersQuery);
+        activeUsersCount = activeUsersSnapshot.data().count;
+      } catch (error) {
+        // If lastLoginAt field doesn't exist, count all users as active
+        console.warn('Could not query active users by lastLoginAt, using total users count');
+        activeUsersCount = usersSnapshot.data().count;
+      }
 
       // Get transactions
       const [allTransactions, pendingTransactions, completedTransactions] = await Promise.all([
@@ -152,28 +161,28 @@ class AnalyticsService {
       });
 
       return {
-        totalUsers: usersSnapshot.data().count,
-        activeUsers: activeUsersSnapshot.data().count,
-        totalDoctors: doctorsSnapshot.data().count,
-        totalPharmacies: pharmaciesSnapshot.data().count,
-        totalPatients: patientsSnapshot.data().count,
-        totalCouriers: couriersSnapshot.data().count,
-        totalCHWs: chwsSnapshot.data().count,
+        totalUsers: usersSnapshot.data()?.count || 0,
+        activeUsers: activeUsersCount,
+        totalDoctors: doctorsSnapshot.data()?.count || 0,
+        totalPharmacies: pharmaciesSnapshot.data()?.count || 0,
+        totalPatients: patientsSnapshot.data()?.count || 0,
+        totalCouriers: couriersSnapshot.data()?.count || 0,
+        totalCHWs: chwsSnapshot.data()?.count || 0,
         totalRevenue,
         monthlyRevenue,
-        totalTransactions: allTransactions.data().count,
-        pendingTransactions: pendingTransactions.data().count,
-        completedTransactions: completedTransactions.data().count,
-        totalAppointments: allAppointments.data().count,
-        upcomingAppointments: upcomingAppointments.data().count,
-        completedAppointments: completedAppointments.data().count,
-        totalArticles: allArticles.data().count,
-        verifiedArticles: verifiedArticles.data().count,
-        pendingArticles: pendingArticles.data().count,
+        totalTransactions: allTransactions.data()?.count || 0,
+        pendingTransactions: pendingTransactions.data()?.count || 0,
+        completedTransactions: completedTransactions.data()?.count || 0,
+        totalAppointments: allAppointments.data()?.count || 0,
+        upcomingAppointments: upcomingAppointments.data()?.count || 0,
+        completedAppointments: completedAppointments.data()?.count || 0,
+        totalArticles: allArticles.data()?.count || 0,
+        verifiedArticles: verifiedArticles.data()?.count || 0,
+        pendingArticles: pendingArticles.data()?.count || 0,
         userGrowth: {
-          today: todayUsers.data().count,
-          thisWeek: weekUsers.data().count,
-          thisMonth: monthUsers.data().count,
+          today: todayUsers.data()?.count || 0,
+          thisWeek: weekUsers.data()?.count || 0,
+          thisMonth: monthUsers.data()?.count || 0,
         },
         revenueBreakdown,
         geographicDistribution,

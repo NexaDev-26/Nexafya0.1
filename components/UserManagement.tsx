@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { User, UserRole } from '../types';
 import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -74,10 +75,10 @@ export const UserManagement: React.FC = () => {
     if (!selectedUser?.id) return;
     try {
       const userRef = doc(firestore, 'users', selectedUser.id);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         ...editForm,
         updatedAt: serverTimestamp(),
-      });
+      }));
       notify('User updated successfully', 'success');
       setShowEditModal(false);
       setSelectedUser(null);
@@ -103,10 +104,10 @@ export const UserManagement: React.FC = () => {
   const handleToggleUserStatus = async (user: User) => {
     try {
       const userRef = doc(firestore, 'users', user.id);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         isActive: user.isActive !== false ? false : true,
         updatedAt: serverTimestamp(),
-      });
+      }));
       notify(`User ${user.isActive !== false ? 'deactivated' : 'activated'}`, 'success');
       loadUsers();
     } catch (error) {

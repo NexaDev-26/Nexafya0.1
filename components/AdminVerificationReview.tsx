@@ -6,6 +6,7 @@ import { UserRole, UserVerification, VerificationDocument } from '../types';
 import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { notificationService } from '../services/notificationService';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export const AdminVerificationReview: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -80,55 +81,55 @@ export const AdminVerificationReview: React.FC = () => {
       const newStatus = reviewAction === 'approve' ? 'Verified' : 'Rejected';
       
       // Update verification status
-      await updateDoc(verificationRef, {
+      await updateDoc(verificationRef, cleanFirestoreData({
         verificationStatus: newStatus,
         verifiedBy: currentUser.id,
         verifiedAt: serverTimestamp(),
         rejectionReason: reviewAction === 'reject' ? reviewNotes : null,
         notes: reviewNotes || null,
         updatedAt: serverTimestamp()
-      });
+      }));
 
       // Update all documents to approved/rejected
       if (selectedVerification.documents) {
         for (const document of selectedVerification.documents) {
-          await updateDoc(doc(firestore, 'verificationDocuments', document.id), {
+          await updateDoc(doc(firestore, 'verificationDocuments', document.id), cleanFirestoreData({
             status: reviewAction === 'approve' ? 'Approved' : 'Rejected',
             reviewedBy: currentUser.id,
             reviewedAt: serverTimestamp(),
             rejectionReason: reviewAction === 'reject' ? reviewNotes : null,
             notes: reviewNotes || null
-          });
+          }));
         }
       }
 
       // Update user's verification status in their profile
       const userRef = doc(firestore, 'users', selectedVerification.userId);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, cleanFirestoreData({
         verificationStatus: newStatus,
         updatedAt: serverTimestamp()
-      });
+      }));
 
       // Update doctor/pharmacy/courier specific collections
       if (selectedVerification.userRole === UserRole.DOCTOR) {
         const doctorRef = doc(firestore, 'doctors', selectedVerification.userId);
         const doctorDoc = await getDoc(doctorRef);
         if (doctorDoc.exists()) {
-          await updateDoc(doctorRef, {
+          await updateDoc(doctorRef, cleanFirestoreData({
             isTrusted: reviewAction === 'approve',
             verificationStatus: newStatus,
             updatedAt: serverTimestamp()
-          });
+          }));
         }
       } else if (selectedVerification.userRole === UserRole.COURIER) {
         const courierRef = doc(firestore, 'couriers', selectedVerification.userId);
         const courierDoc = await getDoc(courierRef);
         if (courierDoc.exists()) {
-          await updateDoc(courierRef, {
+          await updateDoc(courierRef, cleanFirestoreData({
             isTrusted: reviewAction === 'approve',
             verificationStatus: newStatus,
             updatedAt: serverTimestamp()
-          });
+          }));
         }
       }
 

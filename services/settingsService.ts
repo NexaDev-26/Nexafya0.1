@@ -5,6 +5,7 @@
 
 import { db as firestore } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 export interface SystemSettings {
   // Platform Info
@@ -149,10 +150,10 @@ class SettingsService {
   async initializeSettings(): Promise<void> {
     try {
       const settingsRef = doc(firestore, 'systemSettings', 'main');
-      await setDoc(settingsRef, {
+      await setDoc(settingsRef, cleanFirestoreData({
         ...DEFAULT_SETTINGS,
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch (error) {
       console.error('Initialize settings error:', error);
       throw error;
@@ -168,11 +169,11 @@ class SettingsService {
   ): Promise<void> {
     try {
       const settingsRef = doc(firestore, 'systemSettings', 'main');
-      await updateDoc(settingsRef, {
+      await updateDoc(settingsRef, cleanFirestoreData({
         ...updates,
         updatedAt: serverTimestamp(),
         updatedBy: updatedBy || 'system',
-      });
+      }));
 
       // Invalidate cache
       this.settingsCache = null;

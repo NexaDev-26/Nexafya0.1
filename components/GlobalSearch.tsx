@@ -38,21 +38,21 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onNavigate }) => {
 
   const hasQuery = query.trim().length > 0;
 
-  // Filter Data
-  const filteredDoctors = hasQuery ? doctors.filter(d => 
-    d.name.toLowerCase().includes(query.toLowerCase()) || 
-    d.specialty.toLowerCase().includes(query.toLowerCase())
+  // Filter Data with safe access
+  const filteredDoctors = hasQuery && Array.isArray(doctors) ? doctors.filter(d => 
+    (d?.name || '').toLowerCase().includes(query.toLowerCase()) || 
+    (d?.specialty || '').toLowerCase().includes(query.toLowerCase())
   ) : [];
 
-  const filteredMedicines = hasQuery ? medicines.filter(m => 
-    m.name.toLowerCase().includes(query.toLowerCase()) || 
-    m.category.toLowerCase().includes(query.toLowerCase()) ||
-    m.description.toLowerCase().includes(query.toLowerCase())
+  const filteredMedicines = hasQuery && Array.isArray(medicines) ? medicines.filter(m => 
+    (m?.name || '').toLowerCase().includes(query.toLowerCase()) || 
+    (m?.category || '').toLowerCase().includes(query.toLowerCase()) ||
+    (m?.description || '').toLowerCase().includes(query.toLowerCase())
   ) : [];
 
-  const filteredArticles = hasQuery ? articles.filter(a => 
-    a.title.toLowerCase().includes(query.toLowerCase()) || 
-    a.category.toLowerCase().includes(query.toLowerCase())
+  const filteredArticles = hasQuery && Array.isArray(articles) ? articles.filter(a => 
+    (a?.title || '').toLowerCase().includes(query.toLowerCase()) || 
+    (a?.category || '').toLowerCase().includes(query.toLowerCase())
   ) : [];
 
   const hasResults = filteredDoctors.length > 0 || filteredMedicines.length > 0 || filteredArticles.length > 0;
