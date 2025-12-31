@@ -1,6 +1,7 @@
 /**
  * Subscription Management Service
  * Handles subscription plans, activation, renewal, and upgrades
+ * Strictly typed using types/subscription.ts
  */
 
 import { db as firestore } from '../lib/firebase';
@@ -10,63 +11,43 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  addDoc,
   query,
   where,
   getDocs,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { UserRole } from '../types';
+import {
 
-export type SubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED' | 'PENDING';
-
-export type SubscriptionPlan = 'Basic' | 'Professional' | 'Enterprise' | 'Premium';
-
-export interface Subscription {
-  id?: string;
-  userId: string;
-  userRole: UserRole;
-  plan: SubscriptionPlan;
-  status: SubscriptionStatus;
-  startDate: string;
-  endDate: string;
-  autoRenew: boolean;
-  price: number;
-  currency: string;
-  paymentMethod?: string;
-  lastPaymentDate?: string;
-  nextPaymentDate?: string;
-  features: string[];
-  limits: {
-    consultations?: number;
-    articles?: number;
-    storageGB?: number;
-    branches?: number;
-  };
-  createdAt?: any;
-  updatedAt?: any;
-  cancelledAt?: any;
-}
-
-export interface SubscriptionFeature {
-  id: string;
-  name: string;
-  description: string;
-  plan: SubscriptionPlan[];
-}
+  Subscription,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  SubscriptionPlanDetails,
+  SubscriptionLimits,
+  SubscriptionUsage,
+  SubscriptionHistory,
+} from '../types/subscription';
+import { UserRole } from '../types/user';
 
 class SubscriptionService {
   /**
    * Get subscription plan details
    */
-  async getPlanDetails(plan: SubscriptionPlan, role: UserRole): Promise<any> {
+  async getPlanDetails(plan: SubscriptionPlan, role: UserRole): Promise<SubscriptionPlanDetails> {
     try {
       const planRef = doc(firestore, 'subscriptionPackages', plan.toLowerCase());
       const planSnap = await getDoc(planRef);
       
       if (planSnap.exists()) {
-        return planSnap.data();
+        const data = planSnap.data();
+        return {
+          name: plan,
+          price: data.price || 0,
+          currency: data.currency || 'TZS',
+          period: (data.period || 'month') as 'month' | 'year',
+          features: data.features || [],
+          limits: data.limits || {},
+        };
       }
 
       // Fallback to default plans
@@ -80,28 +61,28 @@ class SubscriptionService {
   /**
    * Get default plan details
    */
-  private getDefaultPlan(plan: SubscriptionPlan, role: UserRole): any {
-    const plans: Record<string, any> = {
-      Basic: {
-        name: 'Basic',
-        price: role === 'DOCTOR' ? 0 : 0,
+  private getDefaultPlan(plan: SubscriptionPlan, role: UserRole): SubscriptionPlanDetails {
+    const plans: Record<SubscriptionPlan, SubscriptionPlanDetails> = {
+      [SubscriptionPlan.BASIC]: {
+        name: SubscriptionPlan.BASIC,
+        price: 0,
         currency: 'TZS',
         period: 'month',
         features: [
           'Basic consultations',
           'Health articles access',
           'Medicine ordering',
-        ],
+        ] as const,
         limits: {
-          consultations: role === 'DOCTOR' ? 10 : 2,
-          articles: role === 'DOCTOR' ? 5 : 0,
+          consultations: role === UserRole.DOCTOR ? 10 : 2,
+          articles: role === UserRole.DOCTOR ? 5 : 0,
           storageGB: 1,
           branches: 1,
         },
       },
-      Professional: {
-        name: 'Professional',
-        price: role === 'DOCTOR' ? 50000 : 25000,
+      [SubscriptionPlan.PROFESSIONAL]: {
+        name: SubscriptionPlan.PROFESSIONAL,
+        price: role === UserRole.DOCTOR ? 50000 : 25000,
         currency: 'TZS',
         period: 'month',
         features: [
@@ -109,17 +90,17 @@ class SubscriptionService {
           'Priority support',
           'Advanced analytics',
           'Article publishing',
-        ],
+        ] as const,
         limits: {
           consultations: -1, // Unlimited
-          articles: role === 'DOCTOR' ? 20 : 0,
+          articles: role === UserRole.DOCTOR ? 20 : 0,
           storageGB: 10,
-          branches: role === 'PHARMACY' ? 3 : 1,
+          branches: role === UserRole.PHARMACY ? 3 : 1,
         },
       },
-      Enterprise: {
-        name: 'Enterprise',
-        price: role === 'DOCTOR' ? 150000 : 50000,
+      [SubscriptionPlan.ENTERPRISE]: {
+        name: SubscriptionPlan.ENTERPRISE,
+        price: role === UserRole.DOCTOR ? 150000 : 50000,
         currency: 'TZS',
         period: 'month',
         features: [
@@ -128,7 +109,7 @@ class SubscriptionService {
           'API access',
           'Dedicated support',
           'Custom integrations',
-        ],
+        ] as const,
         limits: {
           consultations: -1,
           articles: -1,
@@ -136,9 +117,27 @@ class SubscriptionService {
           branches: -1,
         },
       },
+      [SubscriptionPlan.PREMIUM]: {
+        name: SubscriptionPlan.PREMIUM,
+        price: role === UserRole.DOCTOR ? 200000 : 100000,
+        currency: 'TZS',
+        period: 'month',
+        features: [
+          'Everything in Enterprise',
+          'White-label solution',
+          'Custom development',
+          '24/7 priority support',
+        ] as const,
+        limits: {
+          consultations: -1,
+          articles: -1,
+          storageGB: -1,
+          branches: -1,
+        },
+      },
     };
 
-    return plans[plan] || plans.Basic;
+    return plans[plan] || plans[SubscriptionPlan.BASIC];
   }
 
   /**
@@ -153,10 +152,40 @@ class SubscriptionService {
         return null;
       }
 
+      const data = subSnap.data();
+      
+      // Convert Firestore timestamps to ISO strings
+      const convertTimestamp = (ts: unknown): string | undefined => {
+        if (!ts) return undefined;
+        if (ts instanceof Timestamp) {
+          return ts.toDate().toISOString();
+        }
+        if (typeof ts === 'string') {
+          return ts;
+        }
+        return undefined;
+      };
+
       return {
         id: subSnap.id,
-        ...subSnap.data(),
-      } as Subscription;
+        userId: data.userId as string,
+        userRole: data.userRole as UserRole,
+        plan: data.plan as SubscriptionPlan,
+        status: data.status as SubscriptionStatus,
+        startDate: data.startDate as string,
+        endDate: data.endDate as string,
+        autoRenew: Boolean(data.autoRenew),
+        price: Number(data.price) || 0,
+        currency: (data.currency as string) || 'TZS',
+        paymentMethod: data.paymentMethod as string | undefined,
+        lastPaymentDate: convertTimestamp(data.lastPaymentDate),
+        nextPaymentDate: convertTimestamp(data.nextPaymentDate),
+        features: (data.features || []) as readonly string[],
+        limits: (data.limits || {}) as SubscriptionLimits,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        cancelledAt: convertTimestamp(data.cancelledAt),
+      };
     } catch (error) {
       console.error('Get subscription error:', error);
       return null;
@@ -179,21 +208,21 @@ class SubscriptionService {
       const endDate = new Date(now);
       endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
 
-      const subscription: Subscription = {
+      const subscription: Omit<Subscription, 'id'> = {
         userId,
-        userRole,
+
         plan,
-        status: 'ACTIVE',
+        status: SubscriptionStatus.ACTIVE,
         startDate: now.toISOString(),
         endDate: endDate.toISOString(),
         autoRenew,
         price: planDetails.price,
-        currency: planDetails.currency || 'TZS',
+        currency: planDetails.currency,
         paymentMethod,
         lastPaymentDate: now.toISOString(),
         nextPaymentDate: autoRenew ? endDate.toISOString() : undefined,
-        features: planDetails.features || [],
-        limits: planDetails.limits || {},
+        features: planDetails.features,
+        limits: planDetails.limits,
       };
 
       const subRef = doc(firestore, 'subscriptions', userId);
@@ -201,7 +230,7 @@ class SubscriptionService {
         ...subscription,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: false });
 
       return subRef.id;
     } catch (error) {
@@ -217,7 +246,7 @@ class SubscriptionService {
     try {
       const subRef = doc(firestore, 'subscriptions', userId);
       await updateDoc(subRef, {
-        status: 'CANCELLED',
+        status: SubscriptionStatus.CANCELLED,
         autoRenew: false,
         cancelledAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -265,7 +294,7 @@ class SubscriptionService {
   async isSubscriptionActive(userId: string): Promise<boolean> {
     const subscription = await this.getSubscription(userId);
     
-    if (!subscription || subscription.status !== 'ACTIVE') {
+    if (!subscription || subscription.status !== SubscriptionStatus.ACTIVE) {
       return false;
     }
 
@@ -281,7 +310,7 @@ class SubscriptionService {
   async hasFeatureAccess(userId: string, feature: string): Promise<boolean> {
     const subscription = await this.getSubscription(userId);
     
-    if (!subscription || subscription.status !== 'ACTIVE') {
+    if (!subscription || subscription.status !== SubscriptionStatus.ACTIVE) {
       return false;
     }
 
@@ -293,8 +322,8 @@ class SubscriptionService {
    */
   async checkUsageLimit(
     userId: string,
-    limitType: 'consultations' | 'articles' | 'storageGB' | 'branches'
-  ): Promise<{ allowed: number; used: number; remaining: number }> {
+    limitType: keyof SubscriptionLimits
+  ): Promise<SubscriptionUsage> {
     const subscription = await this.getSubscription(userId);
     
     if (!subscription) {
@@ -304,7 +333,7 @@ class SubscriptionService {
     const allowed = subscription.limits[limitType] || 0;
     
     // Get usage count (this would query actual usage data)
-    // For now, return mock data
+    // For now, return mock data - TODO: implement real usage tracking
     const used = 0;
     const remaining = allowed === -1 ? -1 : Math.max(0, allowed - used);
 
@@ -327,7 +356,7 @@ class SubscriptionService {
 
       const subRef = doc(firestore, 'subscriptions', userId);
       await updateDoc(subRef, {
-        status: 'ACTIVE',
+        status: SubscriptionStatus.ACTIVE,
         startDate: now.toISOString(),
         endDate: endDate.toISOString(),
         lastPaymentDate: now.toISOString(),
@@ -343,12 +372,26 @@ class SubscriptionService {
   /**
    * Get subscription history
    */
-  async getSubscriptionHistory(userId: string): Promise<any[]> {
+  async getSubscriptionHistory(userId: string): Promise<SubscriptionHistory[]> {
     try {
       // In production, this would query a subscription history collection
-      // For now, return current subscription
+      // For now, return current subscription as history
       const subscription = await this.getSubscription(userId);
-      return subscription ? [subscription] : [];
+      if (!subscription) {
+        return [];
+      }
+      
+      return [{
+        id: subscription.id,
+        userId: subscription.userId,
+        plan: subscription.plan,
+        status: subscription.status,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        price: subscription.price,
+        currency: subscription.currency,
+        createdAt: subscription.createdAt || subscription.startDate,
+      }];
     } catch (error) {
       console.error('Get subscription history error:', error);
       return [];
@@ -363,16 +406,20 @@ class SubscriptionService {
       const now = new Date();
       const q = query(
         collection(firestore, 'subscriptions'),
-        where('status', '==', 'ACTIVE'),
+        where('status', '==', SubscriptionStatus.ACTIVE),
         where('autoRenew', '==', true),
         where('endDate', '<=', now.toISOString())
       );
 
       const querySnapshot = await getDocs(q);
-      const renewals = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Subscription[];
+      // Note: This would need proper type conversion like in getSubscription
+      // For now, we'll get the subscription using getSubscription for type safety
+      const renewalPromises = querySnapshot.docs.map(doc => 
+        this.getSubscription(doc.id)
+      );
+      const renewals = (await Promise.all(renewalPromises)).filter(
+        (sub): sub is Subscription => sub !== null
+      );
 
       for (const subscription of renewals) {
         // In production, process payment first
@@ -388,3 +435,14 @@ class SubscriptionService {
 export const subscriptionService = new SubscriptionService();
 export default subscriptionService;
 
+// Re-export types for convenience
+export type {
+  Subscription,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  SubscriptionPlanDetails,
+  SubscriptionLimits,
+  SubscriptionUsage,
+  SubscriptionHistory,
+} from '../types/subscription';
+import { UserRole } from '../types/user';

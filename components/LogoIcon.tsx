@@ -22,6 +22,8 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", siz
         const settings = await settingsService.getSettings();
         if (settings.appLogo) {
           setLogoUrl(settings.appLogo);
+        } else {
+          setLogoUrl(null);
         }
       } catch (error) {
         console.error('Error loading logo:', error);
@@ -31,12 +33,27 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", siz
     };
 
     loadLogo();
+
+    // Listen for logo update events
+    const handleLogoUpdate = () => {
+      loadLogo();
+    };
+
+    window.addEventListener('appLogoUpdated', handleLogoUpdate);
+    
+    // Refresh on window focus (in case logo was updated in another tab)
+    window.addEventListener('focus', loadLogo);
+
+    return () => {
+      window.removeEventListener('appLogoUpdated', handleLogoUpdate);
+      window.removeEventListener('focus', loadLogo);
+    };
   }, []);
 
   // If logo URL exists, display image
   if (logoUrl && !loading) {
     return (
-      <div className={`${className} bg-teal-600 dark:bg-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-600/20 overflow-hidden transition-transform group-hover:scale-105`}>
+      <div className={`${className} bg-white dark:bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200 dark:border-gray-300 overflow-hidden transition-transform group-hover:scale-105`}>
         <img 
           src={logoUrl} 
           alt="NexaFya Logo" 
@@ -49,11 +66,11 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", siz
 
   // Default icon
   return (
-    <div className={`${className} bg-teal-600 dark:bg-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-600/20 transition-transform group-hover:scale-105`}>
+    <div className={`${className} bg-white dark:bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200 dark:border-gray-300 transition-transform group-hover:scale-105`}>
       {size ? (
-        <Activity className="text-white" size={size} />
+        <Activity className="text-teal-600 dark:text-teal-600" size={size} />
       ) : (
-        <Activity className="text-white" size={24} />
+        <Activity className="text-teal-600 dark:text-teal-600" size={24} />
       )}
     </div>
   );

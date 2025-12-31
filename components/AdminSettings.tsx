@@ -6,6 +6,7 @@ import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/fires
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db as firestore, storage } from '../lib/firebase';
 import { cleanFirestoreData } from '../utils/firestoreHelpers';
+import { settingsService } from '../services/settingsService';
 
 interface PlatformSettings {
   appName: string;
@@ -219,6 +220,18 @@ export const AdminSettings: React.FC = () => {
         setDoc(systemSettingsRef, systemSettingsData, { merge: true }),
         setDoc(platformSettingsRef, platformSettingsData, { merge: true })
       ]);
+      
+      // Update settingsService to invalidate cache
+      await settingsService.updateSettings({
+        appName: settingsToSave.appName,
+        appLogo: settingsToSave.appLogo || undefined,
+        primaryColor: settingsToSave.primaryColor,
+        secondaryColor: settingsToSave.secondaryColor,
+      } as any, user.id);
+      
+      // Dispatch custom event to notify LogoIcon components to refresh
+      window.dispatchEvent(new CustomEvent('appLogoUpdated'));
+      
       notify('Settings saved successfully', 'success');
       logAdminAction('Updated platform settings');
     } catch (error: any) {

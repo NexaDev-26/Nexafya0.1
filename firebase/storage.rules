@@ -56,7 +56,8 @@ service firebase.storage {
     }
     
     // Verification documents - users can upload for verification
-    match /verifications/{userId}/{fileName} {
+    // Path structure: verification-documents/{userId}/{docType}/{fileName}
+    match /verification-documents/{userId}/{docType}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
                      request.auth.uid == userId && 

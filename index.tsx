@@ -62,7 +62,28 @@ const MainApp: React.FC = () => {
   const { user, loading: authLoading, signOut, updateProfile } = useAuth();
   const { notify } = useNotification();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const [currentView, setCurrentView] = useState('dashboard');
+  // For PATIENT role on mobile, default to 'resources' (Health Hub) instead of 'dashboard'
+  const getInitialView = () => {
+    if (typeof window !== 'undefined' && user?.role === UserRole.PATIENT) {
+      const isMobile = window.innerWidth < 768; // Mobile breakpoint
+      if (isMobile) {
+        return 'resources';
+      }
+    }
+    return 'dashboard';
+  };
+  
+  const [currentView, setCurrentView] = useState(() => getInitialView());
+  
+  // Update view when user loads and is PATIENT on mobile
+  useEffect(() => {
+    if (user && user.role === UserRole.PATIENT) {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile && currentView === 'dashboard') {
+        setCurrentView('resources');
+      }
+    }
+  }, [user]);
   
   const [showAuthModal, setShowAuthModal] = useState(false);
   
@@ -185,11 +206,14 @@ const MainApp: React.FC = () => {
       try {
           await db.createAppointment({
               patientId: user?.id,
-              doctorId: newAppointment.doctorId || newAppointment.doctorName,
+              doctorId: newAppointment.doctorId,
+              patientName: newAppointment.patientName || user?.name,
+              doctorName: newAppointment.doctorName,
               date: newAppointment.date,
               time: newAppointment.time,
               type: newAppointment.type,
-              fee: newAppointment.fee
+              fee: newAppointment.fee,
+              location: newAppointment.location
           });
           
           if (user) {

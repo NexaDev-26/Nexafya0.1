@@ -19,7 +19,6 @@ import {
 } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { 
-  Appointment, 
   Doctor, 
   Medicine, 
   UserRole, 
@@ -36,6 +35,12 @@ import {
   HealthMetric,
   Courier 
 } from '../types';
+import {
+  Appointment,
+  AppointmentStatus,
+  AppointmentType,
+  PaymentStatus,
+} from '../types/appointment';
 import { cleanFirestoreData } from '../utils/firestoreHelpers';
 
 /**
@@ -48,7 +53,13 @@ export const firebaseDb = {
   getDoctors: async (): Promise<Doctor[]> => {
     try {
       const doctorsRef = firestoreCollection(firestore, 'doctors');
-      const querySnapshot = await getDocs(query(doctorsRef, orderBy('rating', 'desc')));
+      // Only fetch verified and active doctors
+      const querySnapshot = await getDocs(query(
+        doctorsRef, 
+        where('verificationStatus', '==', 'Verified'),
+        where('isActive', '==', true),
+        orderBy('rating', 'desc')
+      ));
       
       return querySnapshot.docs.map((doc) => {
         const data = doc.data();
@@ -80,6 +91,112 @@ export const firebaseDb = {
       });
     } catch (e) {
       console.error("DB: Failed to fetch doctors", e);
+      // Fallback: fetch all and filter client-side if Firestore query fails (e.g., missing index)
+      try {
+        const doctorsRef = firestoreCollection(firestore, 'doctors');
+        const allDocs = await getDocs(query(doctorsRef, orderBy('rating', 'desc')));
+        return allDocs.docs
+          .filter(doc => {
+            const data = doc.data();
+            return data.verificationStatus === 'Verified' && data.isActive !== false;
+          })
+          .map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name || 'Doctor',
+              role: UserRole.DOCTOR,
+              avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'Doctor')}&background=random&size=200`,
+              email: data.email || '',
+              phone: data.phone || '',
+              location: data.location || 'Tanzania',
+              specialty: data.specialty || 'General Practitioner',
+              rating: Number(data.rating) || 5.0,
+              price: data.consultationFee || data.consultation_fee || data.price || 0,
+              experience: data.experienceYears || data.experience_years || data.experience || 0,
+              availability: data.availability || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+              trustTier: data.trustTier || data.subscriptionTier || undefined,
+              isTrusted: data.isTrusted || data.verificationStatus === 'Verified' || false,
+              canVerifyArticles: data.canVerifyArticles || false,
+              points: data.points || 0,
+              bio: data.bio || '',
+              workplace: data.workplace || data.hospital || data.clinic || undefined,
+              yearsOfExperience: data.experienceYears || data.experience_years || data.experience || 0,
+              verificationStatus: data.verificationStatus || undefined,
+              medicalLicenseNumber: data.medicalLicenseNumber || data.licenseNumber || undefined,
+              medicalCouncilRegistration: data.medicalCouncilRegistration || data.councilRegistration || undefined,
+              isActive: data.isActive !== false,
+            };
+          });
+      } catch (fallbackError) {
+        console.error("DB: Fallback fetch failed", fallbackError);
+        return [];
+      }
+    }
+  },
+
+  getDoctorSchedule: async (doctorId: string): Promise<any | null> => {
+    try {
+      const scheduleRef = doc(firestore, 'doctorSchedules', doctorId);
+      const scheduleDoc = await getDoc(scheduleRef);
+      if (!scheduleDoc.exists()) return null;
+      return scheduleDoc.data();
+    } catch (e) {
+      console.error("DB: Failed to fetch doctor schedule", e);
+      return null;
+    }
+  },
+
+  getAvailableTimeSlots: async (doctorId: string, date: string): Promise<string[]> => {
+    try {
+      // Get doctor's schedule
+      const schedule = await firebaseDb.getDoctorSchedule(doctorId);
+      if (!schedule || !schedule.weeklySchedule) return [];
+
+      // Get day of week from date
+      const appointmentDate = new Date(date);
+      const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][appointmentDate.getDay()];
+      
+      // Find schedule for this day
+      const daySchedule = schedule.weeklySchedule.find((day: any) => day.day === dayOfWeek);
+      if (!daySchedule || !daySchedule.enabled) return [];
+
+      // Get existing appointments for this date
+      const appointmentsRef = firestoreCollection(firestore, 'appointments');
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      const existingAppts = await getDocs(query(
+        appointmentsRef,
+        where('doctorId', '==', doctorId),
+        where('scheduledAt', '>=', Timestamp.fromDate(startOfDay)),
+        where('scheduledAt', '<=', Timestamp.fromDate(endOfDay)),
+        where('status', '!=', 'CANCELLED')
+      ));
+
+      const bookedSlots = new Set<string>();
+      existingAppts.docs.forEach(aptDoc => {
+        const aptData = aptDoc.data();
+        if (aptData.scheduledAt) {
+          const aptDate = aptData.scheduledAt.toDate();
+          const timeStr = `${String(aptDate.getHours()).padStart(2, '0')}:${String(aptDate.getMinutes()).padStart(2, '0')}`;
+          bookedSlots.add(timeStr);
+        }
+      });
+
+      // Filter available slots
+      const availableSlots: string[] = [];
+      daySchedule.timeSlots.forEach((slot: any) => {
+        if (slot.available && !bookedSlots.has(slot.startTime)) {
+          availableSlots.push(slot.startTime);
+        }
+      });
+
+      return availableSlots.sort();
+    } catch (e) {
+      console.error("DB: Failed to get available slots", e);
       return [];
     }
   },
@@ -292,9 +409,9 @@ export const firebaseDb = {
             patientName: data.patientName || 'Patient',
             date: scheduledAt.toLocaleDateString(),
             time: scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: data.status || 'UPCOMING',
-            paymentStatus: data.paymentStatus || 'PENDING',
-            type: data.consultationType || 'VIDEO',
+            status: (data.status as AppointmentStatus) || AppointmentStatus.UPCOMING,
+            paymentStatus: (data.paymentStatus as PaymentStatus) || PaymentStatus.PENDING,
+            type: (data.consultationType as AppointmentType) || AppointmentType.VIDEO,
             fee: Number(data.fee) || 0,
             notes: data.notes || '',
             patientId: data.patientId || '',
@@ -311,31 +428,55 @@ export const firebaseDb = {
     }
   },
 
-  createAppointment: async (apt: any) => {
+  createAppointment: async (apt: Omit<Appointment, 'id'>) => {
     try {
+      // Check if time slot is available (for doctor appointments)
+      if (apt.doctorId) {
+        const availableSlots = await firebaseDb.getAvailableTimeSlots(apt.doctorId, apt.date);
+        if (!availableSlots.includes(apt.time)) {
+          throw new Error('Selected time slot is no longer available. Please choose another time.');
+        }
+      }
+
       const appointmentsRef = firestoreCollection(firestore, 'appointments');
-      const docRef = await addDoc(appointmentsRef, {
+      const scheduledDateTime = new Date(`${apt.date}T${apt.time}:00`);
+      
+      // Get doctor name if not provided
+      let doctorName = apt.doctorName;
+      if (apt.doctorId && !doctorName) {
+        const doctorDetails = await firebaseDb.getDoctorDetails(apt.doctorId);
+        doctorName = doctorDetails?.name || 'Doctor';
+      }
+
+      const docRef = await addDoc(appointmentsRef, cleanFirestoreData({
         patientId: apt.patientId,
         doctorId: apt.doctorId,
-        scheduledAt: Timestamp.fromDate(new Date(`${apt.date}T${apt.time}:00`)),
+        doctorName: doctorName,
+        patientName: apt.patientName,
+        scheduledAt: Timestamp.fromDate(scheduledDateTime),
         consultationType: apt.type,
-        fee: apt.fee,
-        status: 'UPCOMING',
-        paymentStatus: 'PENDING',
-        createdAt: serverTimestamp()
-      });
+        fee: apt.fee || 0,
+        status: AppointmentStatus.UPCOMING,
+        paymentStatus: PaymentStatus.PENDING,
+        location: apt.location || undefined,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }));
       
       return { id: docRef.id, ...apt };
-    } catch (e) {
+    } catch (e: any) {
       console.error("Create appointment error", e);
-      throw e;
+      throw new Error(e.message || "Failed to create appointment");
     }
   },
 
-  updateAppointmentStatus: async (id: string, status: string, notes?: string) => {
+  updateAppointmentStatus: async (id: string, status: AppointmentStatus, notes?: string) => {
     try {
       const docRef = doc(firestore, 'appointments', id);
-      const updates: any = { status, updatedAt: serverTimestamp() };
+      const updates: { status: AppointmentStatus; updatedAt: any; notes?: string } = { 
+        status, 
+        updatedAt: serverTimestamp() 
+      };
       if (notes) updates.notes = notes;
       await updateDoc(docRef, cleanFirestoreData(updates));
       return true;
@@ -378,7 +519,7 @@ export const firebaseDb = {
         getDocs(query(
           appointmentsRef,
           where('patientId', '==', patientId),
-          where('status', '==', 'COMPLETED'),
+          where('status', '==', AppointmentStatus.COMPLETED),
           orderBy('scheduledAt', 'desc')
         )),
         getDocs(query(

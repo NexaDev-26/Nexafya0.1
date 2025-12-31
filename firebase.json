@@ -1,5 +1,7 @@
 {
   "firestore": {
+    "database": "nexafyadb",
+    "location": "eur3",
     "rules": "firebase/firestore.rules",
     "indexes": "firebase/firestore.indexes.json"
   },
@@ -21,4 +23,3 @@
     ]
   }
 }
-

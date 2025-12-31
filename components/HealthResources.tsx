@@ -4,8 +4,9 @@ import { HealthRecords } from './HealthRecords';
 import { Articles } from './Articles';
 import { MedicationTracker } from './MedicationTracker';
 import { WearableIntegration } from './WearableIntegration';
+import { ConditionsAndDiseases } from './ConditionsAndDiseases';
 import { User, Article, HealthRecord, UserRole } from '../types';
-import { FileText, BookOpen, Stethoscope, HeartPulse, Search, Pill, Watch } from 'lucide-react';
+import { FileText, BookOpen, Stethoscope, HeartPulse, Search, Pill, Watch, AlertCircle } from 'lucide-react';
 
 interface HealthResourcesProps {
   user: User;
@@ -28,7 +29,8 @@ export const HealthResources: React.FC<HealthResourcesProps> = ({
     healthRecords,
     onAddHealthRecord
 }) => {
-  const [activeTab, setActiveTab] = useState<'library' | 'records' | 'medications' | 'wearables'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'conditions' | 'records' | 'medications' | 'wearables'>('library');
+  const [librarySubTab, setLibrarySubTab] = useState<'articles' | 'conditions'>('articles');
 
   // Hide Health Hub header and tabs for COURIER role - they should only see articles
   const isCourier = user.role === UserRole.COURIER;
@@ -61,6 +63,12 @@ export const HealthResources: React.FC<HealthResourcesProps> = ({
                             <BookOpen size={18} /> Medical Library
                         </button>
                         <button 
+                            onClick={() => setActiveTab('conditions')}
+                            className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'conditions' ? 'bg-white dark:bg-white shadow-sm text-red-600' : 'text-gray-500'}`}
+                        >
+                            <AlertCircle size={18} /> Conditions
+                        </button>
+                        <button 
                             onClick={() => setActiveTab('records')}
                             className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'records' ? 'bg-white dark:bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
                         >
@@ -83,13 +91,40 @@ export const HealthResources: React.FC<HealthResourcesProps> = ({
 
                 {/* Search Bar - Featured */}
                 {activeTab === 'library' && (
+                    <div className="space-y-4">
+                        {/* Sub-tabs for Medical Library */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setLibrarySubTab('articles')}
+                                className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
+                                    librarySubTab === 'articles' 
+                                        ? 'bg-teal-600 text-white shadow-sm' 
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                }`}
+                            >
+                                <BookOpen size={16} /> Articles
+                            </button>
+                            <button
+                                onClick={() => setLibrarySubTab('conditions')}
+                                className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
+                                    librarySubTab === 'conditions' 
+                                        ? 'bg-teal-600 text-white shadow-sm' 
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                }`}
+                            >
+                                <AlertCircle size={16} /> Conditions & Diseases
+                            </button>
+                        </div>
+                        {librarySubTab === 'articles' && (
                     <div className="max-w-2xl relative">
                         <input 
                             type="text" 
-                            placeholder="Search symptoms, conditions, or treatments..." 
+                                    placeholder="Search articles, treatments, or health topics..." 
                             className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-600 text-lg focus:ring-2 focus:ring-teal-500 outline-none transition-shadow"
                         />
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -109,12 +144,16 @@ export const HealthResources: React.FC<HealthResourcesProps> = ({
                 onViewDoctor={onViewDoctor}
                 onViewAuthor={onViewAuthor}
             />
+        ) : activeTab === 'conditions' ? (
+            <ConditionsAndDiseases onNavigate={onNavigate} />
         ) : activeTab === 'records' ? (
             <HealthRecords records={healthRecords} onAddRecord={onAddHealthRecord} />
         ) : activeTab === 'medications' ? (
             <MedicationTracker />
         ) : activeTab === 'wearables' ? (
             <WearableIntegration />
+        ) : activeTab === 'library' && librarySubTab === 'conditions' ? (
+            <ConditionsAndDiseases onNavigate={onNavigate} />
         ) : (
             <Articles 
                 user={user} 

@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { SymptomChecker } from './SymptomChecker';
-import { Bot, Stethoscope, TestTube, MapPin, Calendar, Clock, ChevronRight, X, User as UserIcon, CreditCard, CheckCircle, Search, Star, Filter, ArrowLeft, Video, MessageSquare, Phone } from 'lucide-react';
+import { Bot, Stethoscope, TestTube, MapPin, Calendar, Clock, ChevronRight, X, User as UserIcon, CreditCard, CheckCircle, Search, Star, Filter, ArrowLeft, Video, MessageSquare, Phone, Loader2 } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { Appointment, User, Doctor, UserRole } from '../types';
 import { db } from '../services/db';
+import { firebaseDb } from '../services/firebaseDb';
 import { addSampleDoctors } from '../utils/addSampleDoctors';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -30,6 +31,8 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
   const [doctorSearch, setDoctorSearch] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState('All');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   
   // Reviews State
   const [reviews, setReviews] = useState<any[]>([]);
@@ -69,6 +72,31 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
       loadReviews();
   }, [selectedDoctor]);
 
+  // Load available time slots when doctor and date are selected
+  useEffect(() => {
+      const loadAvailableSlots = async () => {
+          if (!selectedDoctor || !bookingDate) {
+              setAvailableSlots([]);
+              return;
+          }
+          setLoadingSlots(true);
+          try {
+              const slots = await firebaseDb.getAvailableTimeSlots(selectedDoctor.id, bookingDate);
+              setAvailableSlots(slots);
+              // Clear selected slot if it's no longer available
+              if (selectedSlot && !slots.includes(selectedSlot)) {
+                  setSelectedSlot(null);
+              }
+          } catch (error) {
+              console.error('Failed to load available slots:', error);
+              setAvailableSlots([]);
+          } finally {
+              setLoadingSlots(false);
+          }
+      };
+      loadAvailableSlots();
+  }, [selectedDoctor, bookingDate]);
+
   const LAB_TESTS = [
       { id: 1, name: 'Malaria MRDT & Blood Slide', price: 15000, time: '30 mins', type: 'Pathology', lab: 'Afya Diagnostics' },
       { id: 2, name: 'Full Blood Picture (FBP)', price: 25000, time: '24 hrs', type: 'Hematology', lab: 'City Lab Hub' },
@@ -87,14 +115,29 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
   });
 
   const handleInitiateBooking = (item: any, type: 'lab' | 'doctor') => {
+      if (type === 'doctor' && !selectedSlot) {
+          notify('Please select an available time slot first', 'error');
+          return;
+      }
       setBookingItem({ ...item, bookingType: type });
+      if (type === 'doctor' && selectedSlot) {
+          // For doctor bookings, slot and date are already selected
+          setBookingTime(selectedSlot);
+      } else {
+          // For lab bookings, set default date/time
       setBookingDate(new Date().toISOString().split('T')[0]);
       setBookingTime('09:00');
-      setSelectedSlot(null);
+      }
   };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
       if (!bookingItem) return;
+
+      // For doctor bookings, ensure slot is selected
+      if (bookingItem.bookingType === 'doctor' && !selectedSlot && !bookingTime) {
+          notify('Please select a time slot', 'error');
+          return;
+      }
 
       if (onBookAppointment && user) {
           const newAppointment: Appointment = {
@@ -102,20 +145,30 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
               doctorName: bookingItem.bookingType === 'doctor' ? bookingItem.name : bookingItem.lab,
               doctorId: bookingItem.bookingType === 'doctor' ? bookingItem.id : undefined,
               patientName: user.name,
+              patientId: user.id,
               date: bookingDate,
               time: selectedSlot || bookingTime,
               status: 'UPCOMING',
               paymentStatus: 'PENDING',
-              type: bookingItem.bookingType === 'doctor' ? 'VIDEO' : 'IN_PERSON', // Defaulting doctor to video for now
-              fee: bookingItem.price
+              type: bookingItem.bookingType === 'doctor' ? 'VIDEO' : 'IN_PERSON',
+              fee: bookingItem.price || (bookingItem.bookingType === 'doctor' ? bookingItem.price : 0)
           };
-          onBookAppointment(newAppointment);
+          
+          try {
+              await onBookAppointment(newAppointment);
           notify(`Appointment confirmed with ${newAppointment.doctorName} on ${bookingDate}`, 'success');
+              setBookingItem(null);
+              setSelectedDoctor(null);
+              setSelectedSlot(null);
+          } catch (error: any) {
+              notify(error.message || 'Failed to book appointment', 'error');
+          }
       } else {
           notify(`Booking request for ${bookingItem.name} sent!`, 'success');
+          setBookingItem(null);
+          setSelectedDoctor(null);
+          setSelectedSlot(null);
       }
-      setBookingItem(null);
-      setSelectedDoctor(null);
   };
 
   const handleSubmitReview = async () => {
@@ -347,32 +400,66 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                                   </div>
 
                                   <div>
-                                      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">Availability</h3>
-                                      <div className="space-y-4">
-                                          {/* Use real availability array to generate slots */}
-                                          {selectedDoctor.availability && selectedDoctor.availability.map((day) => (
-                                              <div key={day} className="flex flex-col sm:flex-row gap-4 border-b border-gray-100 dark:border-gray-700 pb-4 last:border-0">
-                                                  <div className="w-16 font-bold text-gray-900 dark:text-white pt-2">{day}</div>
-                                                  <div className="flex flex-wrap gap-2 flex-1">
-                                                      {['09:00 AM', '11:00 AM', '02:00 PM'].map((slot) => (
+                                      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">Book Appointment</h3>
+                                      
+                                      {/* Date Selection */}
+                                      <div className="mb-6">
+                                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                              Select Date
+                                          </label>
+                                          <input
+                                              type="date"
+                                              value={bookingDate}
+                                              onChange={(e) => {
+                                                  setBookingDate(e.target.value);
+                                                  setSelectedSlot(null); // Clear selected slot when date changes
+                                              }}
+                                              min={new Date().toISOString().split('T')[0]}
+                                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                          />
+                                      </div>
+
+                                      {/* Available Time Slots */}
+                                      <div>
+                                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                              Available Time Slots
+                                          </label>
+                                          {loadingSlots ? (
+                                              <div className="flex items-center justify-center py-8">
+                                                  <Loader2 className="animate-spin text-blue-600" size={24} />
+                                              </div>
+                                          ) : availableSlots.length === 0 ? (
+                                              <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                                                  <Clock className="mx-auto text-gray-400 mb-2" size={32} />
+                                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                      {bookingDate ? 'No available slots for this date. Please select another date.' : 'Please select a date first.'}
+                                                  </p>
+                                              </div>
+                                          ) : (
+                                              <div className="flex flex-wrap gap-2">
+                                                  {availableSlots.map((slot) => {
+                                                      // Convert 24h format to 12h format for display
+                                                      const [hours, minutes] = slot.split(':').map(Number);
+                                                      const period = hours >= 12 ? 'PM' : 'AM';
+                                                      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+                                                      const displaySlot = `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
+                                                      
+                                                      return (
                                                           <button 
                                                               key={slot}
-                                                              onClick={() => {
-                                                                  setBookingDate(new Date().toISOString().split('T')[0]); // Default to today/tmrw logic in real app
-                                                                  setSelectedSlot(slot);
-                                                              }}
-                                                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                              onClick={() => setSelectedSlot(slot)}
+                                                              className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
                                                                   selectedSlot === slot 
                                                                   ? 'bg-blue-600 text-white shadow-md' 
-                                                                  : 'bg-gray-50 dark:bg-gray-100 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-100/50 hover:text-blue-600'
+                                                                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 border border-gray-200 dark:border-gray-700'
                                                               }`}
                                                           >
-                                                              {slot}
+                                                              {displaySlot}
                                                           </button>
-                                                      ))}
-                                                  </div>
+                                                      );
+                                                  })}
                                               </div>
-                                          ))}
+                                          )}
                                       </div>
                                   </div>
                               </div>
@@ -627,6 +714,30 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                           </div>
                       </div>
 
+                      {bookingItem.bookingType === 'doctor' ? (
+                          // Doctor booking - show selected date and slot (read-only)
+                          <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Date</label>
+                                  <div className="p-3 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white font-medium">
+                                      {new Date(bookingDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Time</label>
+                                  <div className="p-3 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white font-medium">
+                                      {(() => {
+                                          const timeStr = selectedSlot || bookingTime;
+                                          const [hours, minutes] = timeStr.split(':').map(Number);
+                                          const period = hours >= 12 ? 'PM' : 'AM';
+                                          const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+                                          return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
+                                      })()}
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          // Lab booking - allow date/time selection
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Date</label>
@@ -635,6 +746,7 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                                       type="date" 
                                       value={bookingDate}
                                       onChange={(e) => setBookingDate(e.target.value)}
+                                          min={new Date().toISOString().split('T')[0]}
                                       className="w-full pl-3 pr-2 py-3 bg-white dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                                   />
                               </div>
@@ -644,16 +756,14 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                               <div className="relative">
                                   <input 
                                       type="time" 
-                                      value={selectedSlot || bookingTime}
-                                      onChange={(e) => {
-                                          setBookingTime(e.target.value);
-                                          setSelectedSlot(e.target.value);
-                                      }}
+                                          value={bookingTime}
+                                          onChange={(e) => setBookingTime(e.target.value)}
                                       className="w-full pl-3 pr-2 py-3 bg-white dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                                   />
                               </div>
                           </div>
                       </div>
+                      )}
                   </div>
 
                   <button 

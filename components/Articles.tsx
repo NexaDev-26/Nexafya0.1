@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, Article, ArticleImage } from '../types';
 import { useNotification } from './NotificationSystem';
 import { PAYMENT_METHODS, MOCK_DOCTORS } from '../constants';
-import { Search, PenTool, BookOpen, Heart, Clock, User as UserIcon, ChevronLeft, Share2, Bookmark, Sparkles, RefreshCw, Check, Link as LinkIcon, Edit2, Trash2, Crown, Image as ImageIcon, Save, X, Layout, ArrowRight, Eye, Lock, ShieldCheck, AlignLeft, Gift, ShoppingBag, Stethoscope, CreditCard, Smartphone, CheckCircle, ExternalLink, Lightbulb, ChevronDown, Plus, Upload, LayoutGrid, FileText, Flame, Trophy, Loader2, Send, Archive, Activity, Zap, Brain, Baby, HeartPulse } from 'lucide-react';
+import { Search, PenTool, BookOpen, Heart, Clock, User as UserIcon, ChevronLeft, Share2, Bookmark, Sparkles, RefreshCw, Check, Link as LinkIcon, Edit2, Trash2, Crown, Image as ImageIcon, Save, X, Layout, ArrowRight, Eye, Lock, ShieldCheck, AlignLeft, Gift, ShoppingBag, Stethoscope, CreditCard, Smartphone, CheckCircle, ExternalLink, Lightbulb, ChevronDown, Plus, Upload, LayoutGrid, FileText, Flame, Trophy, Loader2, Send, Archive, Activity, Zap, Brain, Baby, HeartPulse, Star, Briefcase } from 'lucide-react';
 import { checkSymptoms } from '../services/geminiService';
 import { db } from '../services/db';
 import PaymentModal from './PaymentModal';
@@ -44,6 +44,9 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
   const [likedArticleIds, setLikedArticleIds] = useState<string[]>([]);
   const [bookmarkedArticleIds, setBookmarkedArticleIds] = useState<string[]>([]);
   const [authorAvatars, setAuthorAvatars] = useState<Record<string, string>>({});
+  const [authorDetails, setAuthorDetails] = useState<Record<string, any>>({}); // Store full doctor details
+  const [authorReviews, setAuthorReviews] = useState<Record<string, any[]>>({}); // Store reviews per author
+  const [articleStats, setArticleStats] = useState<Record<string, { likes: number; saves: number; shares: number }>>({});
 
   // -- Editor State --
   const [editId, setEditId] = useState<string | null>(null);
@@ -139,38 +142,119 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
       }
   }, [user.id]);
 
-  // Load author avatars
+  // Load author avatars and details
   useEffect(() => {
-      const loadAuthorAvatars = async () => {
+      const loadAuthorData = async () => {
           const uniqueAuthorIds = [...new Set(articles.map(a => a.authorId))];
           const avatarMap: Record<string, string> = {};
+          const detailsMap: Record<string, any> = {};
+          const reviewsMap: Record<string, any[]> = {};
           
           await Promise.all(
               uniqueAuthorIds.map(async (authorId) => {
                   try {
                       // Try doctor collection first
                       const doctorDoc = await getDoc(doc(firestore, 'doctors', authorId));
-                      if (doctorDoc.exists() && doctorDoc.data().avatar) {
-                          avatarMap[authorId] = doctorDoc.data().avatar;
+                      if (doctorDoc.exists()) {
+                          const data = doctorDoc.data();
+                          if (data.avatar) avatarMap[authorId] = data.avatar;
+                          detailsMap[authorId] = {
+                              name: data.name || 'Unknown',
+                              specialty: data.specialty || 'General Practitioner',
+                              rating: data.rating || 5.0,
+                              experience: data.experienceYears || data.experience_years || 0,
+                              workplace: data.workplace || data.hospital || data.clinic || '',
+                              bio: data.bio || '',
+                              isTrusted: data.isTrusted || false,
+                              trustTier: data.trustTier || undefined
+                          };
+                          
+                          // Load reviews
+                          try {
+                              const reviews = await db.getDoctorReviews(authorId);
+                              reviewsMap[authorId] = reviews;
+                          } catch (e) {
+                              console.error(`Failed to load reviews for ${authorId}:`, e);
+                              reviewsMap[authorId] = [];
+                          }
                           return;
                       }
                       
                       // Fallback to users collection
                       const userDoc = await getDoc(doc(firestore, 'users', authorId));
-                      if (userDoc.exists() && userDoc.data().avatar) {
-                          avatarMap[authorId] = userDoc.data().avatar;
+                      if (userDoc.exists()) {
+                          const data = userDoc.data();
+                          if (data.avatar) avatarMap[authorId] = data.avatar;
+                          detailsMap[authorId] = {
+                              name: data.name || 'Unknown',
+                              specialty: 'Contributor',
+                              rating: 0,
+                              experience: 0,
+                              workplace: '',
+                              bio: '',
+                              isTrusted: false
+                          };
+                          reviewsMap[authorId] = [];
                       }
                   } catch (error) {
-                      console.error(`Failed to load avatar for ${authorId}:`, error);
+                      console.error(`Failed to load data for ${authorId}:`, error);
                   }
               })
           );
           
           setAuthorAvatars(avatarMap);
+          setAuthorDetails(detailsMap);
+          setAuthorReviews(reviewsMap);
       };
       
       if (articles.length > 0) {
-          loadAuthorAvatars();
+          loadAuthorData();
+      }
+  }, [articles]);
+
+  // Load article stats (likes, saves/bookmarks, shares)
+  useEffect(() => {
+      const loadArticleStats = async () => {
+          const statsMap: Record<string, { likes: number; saves: number; shares: number }> = {};
+          
+          await Promise.all(
+              articles.map(async (article) => {
+                  try {
+                      // Get likes count
+                      const likesQuery = query(
+                          collection(firestore, 'articleLikes'),
+                          where('articleId', '==', article.id)
+                      );
+                      const likesSnap = await getDocs(likesQuery);
+                      
+                      // Get bookmarks/saves count
+                      const bookmarksQuery = query(
+                          collection(firestore, 'userBookmarks'),
+                          where('articleId', '==', article.id)
+                      );
+                      const bookmarksSnap = await getDocs(bookmarksQuery);
+                      
+                      statsMap[article.id] = {
+                          likes: likesSnap.size || article.likes || 0,
+                          saves: bookmarksSnap.size || 0,
+                          shares: article.shares || 0
+                      };
+                  } catch (error) {
+                      console.error(`Failed to load stats for article ${article.id}:`, error);
+                      statsMap[article.id] = {
+                          likes: article.likes || 0,
+                          saves: 0,
+                          shares: article.shares || 0
+                      };
+                  }
+              })
+          );
+          
+          setArticleStats(statsMap);
+      };
+      
+      if (articles.length > 0) {
+          loadArticleStats();
       }
   }, [articles]);
 
@@ -584,6 +668,131 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
               </div>
            </div>
         </article>
+
+        {/* Author Details Section Below Article */}
+        {authorDetails[selectedArticle.authorId] && (
+            <div className="mt-8 bg-white dark:bg-[#0F172A] rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700/50">
+                <div className="flex items-start gap-6">
+                    <div className="relative flex-shrink-0">
+                        <div className="w-24 h-24 rounded-full overflow-hidden border-3 border-gray-200 dark:border-gray-700">
+                            {authorAvatars[selectedArticle.authorId] ? (
+                                <img 
+                                    src={authorAvatars[selectedArticle.authorId]} 
+                                    alt={authorDetails[selectedArticle.authorId].name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[selectedArticle.authorId].name)}&background=random&size=96`;
+                                    }}
+                                />
+                            ) : (
+                                <img 
+                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[selectedArticle.authorId].name)}&background=random&size=96`} 
+                                    alt={authorDetails[selectedArticle.authorId].name}
+                                    className="w-full h-full object-cover"
+                                />
+                            )}
+                        </div>
+                        {authorDetails[selectedArticle.authorId].isTrusted && (
+                            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-3 border-white dark:border-gray-900 shadow-md">
+                                <CheckCircle size={16} className="text-white" fill="currentColor" />
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                                    {authorDetails[selectedArticle.authorId].name}
+                                </h3>
+                                <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2">
+                                    {authorDetails[selectedArticle.authorId].specialty}
+                                </p>
+                                {authorDetails[selectedArticle.authorId].rating > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1">
+                                            <Star size={16} className="text-yellow-500 fill-current" />
+                                            <span className="font-bold text-gray-900 dark:text-white">
+                                                {authorDetails[selectedArticle.authorId].rating.toFixed(1)}
+                                            </span>
+                                        </div>
+                                        {authorReviews[selectedArticle.authorId] && authorReviews[selectedArticle.authorId].length > 0 && (
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                ({authorReviews[selectedArticle.authorId].length} {authorReviews[selectedArticle.authorId].length === 1 ? 'review' : 'reviews'})
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    if (onViewAuthor) {
+                                        onViewAuthor(selectedArticle.authorId);
+                                    }
+                                }}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            >
+                                View Profile
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
+                        
+                        {authorDetails[selectedArticle.authorId].bio && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
+                                {authorDetails[selectedArticle.authorId].bio}
+                            </p>
+                        )}
+                        
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            {authorDetails[selectedArticle.authorId].experience > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <Trophy size={14} className="text-amber-500" />
+                                    <span>{authorDetails[selectedArticle.authorId].experience} years experience</span>
+                                </div>
+                            )}
+                            {authorDetails[selectedArticle.authorId].workplace && (
+                                <div className="flex items-center gap-1.5">
+                                    <Briefcase size={14} className="text-blue-500" />
+                                    <span>{authorDetails[selectedArticle.authorId].workplace}</span>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Stats */}
+                        <div className="flex items-center gap-6 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                                <Heart size={18} className="text-red-500" />
+                                <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Likes</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">
+                                        {articleStats[selectedArticle.id]?.likes || selectedArticle.likes || 0}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Bookmark size={18} className="text-blue-500" />
+                                <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Saves</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">
+                                        {articleStats[selectedArticle.id]?.saves || 0}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Share2 size={18} className="text-green-500" />
+                                <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Shares</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">
+                                        {articleStats[selectedArticle.id]?.shares || selectedArticle.shares || 0}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
     );
   }
@@ -801,6 +1010,91 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
                                         </div>
                                         <span className="text-xs text-gray-400">{article.readTime} min</span>
                                     </div>
+                                    
+                                    {/* Author Details Section */}
+                                    {authorDetails[article.authorId] && (
+                                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                            <div 
+                                                className="flex items-center gap-3 cursor-pointer group"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (onViewAuthor) {
+                                                        onViewAuthor(article.authorId);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="relative flex-shrink-0">
+                                                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-colors">
+                                                        {authorAvatars[article.authorId] ? (
+                                                            <img 
+                                                                src={authorAvatars[article.authorId]} 
+                                                                alt={authorDetails[article.authorId].name}
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => {
+                                                                    const target = e.target as HTMLImageElement;
+                                                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[article.authorId].name)}&background=random&size=48`;
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <img 
+                                                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[article.authorId].name)}&background=random&size=48`} 
+                                                                alt={authorDetails[article.authorId].name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    {authorDetails[article.authorId].isTrusted && (
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900">
+                                                            <CheckCircle size={10} className="text-white" fill="currentColor" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-xs text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                                                        {authorDetails[article.authorId].name}
+                                                    </h4>
+                                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{authorDetails[article.authorId].specialty}</p>
+                                                    {authorDetails[article.authorId].rating > 0 && (
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <Star size={10} className="text-yellow-500 fill-current" />
+                                                            <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300">
+                                                                {authorDetails[article.authorId].rating.toFixed(1)}
+                                                            </span>
+                                                            {authorReviews[article.authorId] && authorReviews[article.authorId].length > 0 && (
+                                                                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                                    ({authorReviews[article.authorId].length})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Stats Row */}
+                                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <Heart size={12} className="text-red-500" />
+                                                        <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                            {articleStats[article.id]?.likes || article.likes || 0}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Bookmark size={12} className="text-blue-500" />
+                                                        <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                            {articleStats[article.id]?.saves || 0}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Share2 size={12} className="text-green-500" />
+                                                        <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                            {articleStats[article.id]?.shares || article.shares || 0}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}

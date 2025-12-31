@@ -1,5 +1,6 @@
 
-import { UserRole, Appointment, Metric, PaymentMethod, Doctor, Medicine, Article, HealthRecord, MedicationSchedule, FamilyMember, Challenge, HealthPlan, SubscriptionPackage } from './types';
+import { UserRole, Appointment, Metric, PaymentMethod, Doctor, Medicine, Article, HealthRecord, MedicationSchedule, FamilyMember, Challenge, HealthPlan } from './types';
+import { SubscriptionPackage, SubscriptionPlan } from './types/subscription';
 
 // NexaFya Brand Colors
 export const COLORS = {
@@ -231,39 +232,39 @@ export const HEALTH_TIPS = [
     { id: 't1', title: 'Daily Health Tips To Strengthen Your Immune System', author: 'Dr. Michael', image: 'https://picsum.photos/200/200?random=50' },
 ];
 
-export const SUBSCRIPTION_PACKAGES: SubscriptionPackage[] = [
+export const SUBSCRIPTION_PACKAGES: readonly SubscriptionPackage[] = [
   {
     id: 'basic',
-    role: 'PHARMACY',
-    name: 'Basic Plan',
+    role: 'PHARMACY' as const,
+    name: SubscriptionPlan.BASIC,
     price: '50,000',
     description: 'Essential features for small pharmacies',
-    features: ['Basic inventory management', 'Order processing', 'Customer management'],
-    allowedMethods: ['mpesa', 'tigo'],
+    features: ['Basic inventory management', 'Order processing', 'Customer management'] as const,
+    allowedMethods: ['mpesa', 'tigo'] as const,
     currency: 'TZS',
-    period: 'monthly'
+    period: 'monthly',
   },
   {
     id: 'professional',
-    role: 'PHARMACY',
-    name: 'Professional Plan',
+    role: 'PHARMACY' as const,
+    name: SubscriptionPlan.PROFESSIONAL,
     price: '150,000',
     description: 'Advanced features for growing pharmacies',
-    features: ['Advanced inventory', 'Multi-branch support', 'Analytics', 'Priority support'],
-    allowedMethods: ['mpesa', 'tigo', 'airtel'],
+    features: ['Advanced inventory', 'Multi-branch support', 'Analytics', 'Priority support'] as const,
+    allowedMethods: ['mpesa', 'tigo', 'airtel'] as const,
     isPopular: true,
     currency: 'TZS',
-    period: 'monthly'
+    period: 'monthly',
   },
   {
     id: 'enterprise',
-    role: 'PHARMACY',
-    name: 'Enterprise Plan',
+    role: 'PHARMACY' as const,
+    name: SubscriptionPlan.ENTERPRISE,
     price: '300,000',
     description: 'Complete solution for large pharmacy chains',
-    features: ['Unlimited branches', 'Custom integrations', 'Dedicated support', 'API access'],
-    allowedMethods: ['mpesa', 'tigo', 'airtel', 'nhif'],
+    features: ['Unlimited branches', 'Custom integrations', 'Dedicated support', 'API access'] as const,
+    allowedMethods: ['mpesa', 'tigo', 'airtel', 'nhif'] as const,
     currency: 'TZS',
-    period: 'monthly'
-  }
-];
+    period: 'monthly',
+  },
+] as const;

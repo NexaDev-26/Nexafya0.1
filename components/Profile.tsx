@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, UserRole, Article, FamilyMember, Transaction, DoctorPaymentDetail, VerificationDocument } from '../types';
 // Added MapPin to the lucide-react imports
-import { User as UserIcon, Edit2, Camera, ShieldCheck, Wallet, Plus, Trash2, Users, FileText, Shield, Check, X, Banknote, Upload, CheckCircle, Smartphone, Key, Loader2, Stethoscope, Briefcase, DollarSign, MapPin, CreditCard, HeartPulse, Share2, Gift, Crown, Award } from 'lucide-react';
+import { User as UserIcon, Edit2, Camera, ShieldCheck, Wallet, Plus, Trash2, Users, FileText, Shield, Check, X, Banknote, Upload, CheckCircle, Smartphone, Key, Loader2, Stethoscope, Briefcase, DollarSign, MapPin, CreditCard, HeartPulse, Share2, Gift, Crown, Award, Calendar } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { db } from '../services/db';
@@ -11,10 +11,11 @@ import { SubscriptionManagement } from './SubscriptionManagement';
 import { NHIFIntegration } from './NHIFIntegration';
 import { ReferralProgram } from './ReferralProgram';
 import { VerificationDocumentUpload } from './VerificationDocumentUpload';
+import { DoctorSchedule } from './DoctorSchedule';
 import { storage, storageRefs, db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useTransactions } from '../hooks/useFirestore';
-import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import { SubscriptionPackage } from '../types';
 import { firebaseDb } from '../services/firebaseDb';
@@ -66,12 +67,22 @@ export const Profile: React.FC<ProfileProps> = ({
       workplace: ''
   });
 
-  // Finance state (doctor/pharmacy)
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  // Finance state (doctor/pharmacy/courier)
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]); // For doctors/pharmacies: receive payments
+  const [withdrawalMethods, setWithdrawalMethods] = useState<any[]>([]); // For couriers: get paid
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [earnings, setEarnings] = useState<any[]>([]); // For couriers: earnings from deliveries
+  const [totalBalance, setTotalBalance] = useState(0); // For couriers: total wallet balance
   const [showAddPayMethod, setShowAddPayMethod] = useState(false);
+  const [showAddWithdrawalMethod, setShowAddWithdrawalMethod] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [newPayMethod, setNewPayMethod] = useState({ provider: 'M-Pesa', number: '', name: '', bankName: '' });
+  const [newWithdrawalMethod, setNewWithdrawalMethod] = useState({ provider: 'M-Pesa', number: '', name: '', bankName: '' });
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [selectedWithdrawalMethod, setSelectedWithdrawalMethod] = useState('');
   const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
+  const [isSavingWithdrawalMethod, setIsSavingWithdrawalMethod] = useState(false);
+  const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
   
   // Package subscription state
   const [availablePackages, setAvailablePackages] = useState<SubscriptionPackage[]>([]);
@@ -115,7 +126,42 @@ export const Profile: React.FC<ProfileProps> = ({
 
   useEffect(() => {
       const loadFinance = async () => {
-          if (user.role !== UserRole.DOCTOR && user.role !== UserRole.PHARMACY) return;
+          if (user.role === UserRole.COURIER) {
+              // Load courier-specific finance data
+              try {
+                  // Load withdrawal methods for couriers
+                  const withdrawalSnap = await getDocs(query(
+                      collection(firestore, 'courierWithdrawalMethods'),
+                      where('courierId', '==', user.id)
+                  ));
+                  setWithdrawalMethods(withdrawalSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+                  // Load earnings transactions (transactions where courier is recipient)
+                  // Note: Firestore requires index for multiple where + orderBy, or we fetch and sort in-memory
+                  const earningsQuery = query(
+                      collection(firestore, 'transactions'),
+                      where('recipientId', '==', user.id),
+                      where('type', '==', 'COMMISSION'), // Courier earnings
+                      limit(50)
+                  );
+                  const earningsSnap = await getDocs(earningsQuery);
+                  const earningsData = earningsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                  // Sort by createdAt descending (newest first)
+                  earningsData.sort((a: any, b: any) => {
+                      const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.created_at?.toDate ? a.created_at.toDate().getTime() : new Date(a.createdAt || a.created_at || 0).getTime());
+                      const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.created_at?.toDate ? b.created_at.toDate().getTime() : new Date(b.createdAt || b.created_at || 0).getTime());
+                      return bTime - aTime;
+                  });
+                  setEarnings(earningsData);
+
+                  // Calculate total balance from completed earnings
+                  const completedEarnings = earningsData.filter((e: any) => e.status === 'COMPLETED');
+                  const balance = completedEarnings.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+                  setTotalBalance(balance);
+              } catch (e) {
+                  console.error('Failed to load courier finance data', e);
+              }
+          } else if (user.role === UserRole.DOCTOR || user.role === UserRole.PHARMACY) {
           try {
               // Load payment methods - different collections for doctor vs pharmacy
               const paymentMethodCollection = user.role === UserRole.DOCTOR 
@@ -161,6 +207,7 @@ export const Profile: React.FC<ProfileProps> = ({
               }
           } catch (e) {
               console.error('Failed to load finance data', e);
+              }
           }
       };
       loadFinance();
@@ -323,6 +370,11 @@ export const Profile: React.FC<ProfileProps> = ({
                     {user.role !== UserRole.PATIENT && (
                         <button onClick={() => setActiveTab('finance')} className={`flex-shrink-0 lg:w-full flex items-center gap-3 px-5 py-4 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'finance' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'}`}>
                             <Wallet size={18} /> Finance
+                        </button>
+                    )}
+                    {(user.role === UserRole.DOCTOR || user.role === UserRole.COURIER || user.role === UserRole.PHARMACY || user.role === UserRole.CHW) && (
+                        <button onClick={() => setActiveTab('verification')} className={`flex-shrink-0 lg:w-full flex items-center gap-3 px-5 py-4 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'verification' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'}`}>
+                            <ShieldCheck size={18} /> Verification
                         </button>
                     )}
                     <button onClick={() => setActiveTab('settings')} className={`flex-shrink-0 lg:w-full flex items-center gap-3 px-5 py-4 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'settings' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'}`}>
@@ -661,6 +713,422 @@ export const Profile: React.FC<ProfileProps> = ({
                     </div>
                 )}
 
+                {activeTab === 'finance' && user.role === UserRole.ADMIN && (
+                    <div className="bg-white dark:bg-[#0F172A] rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700/50">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Financial Overview</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border border-blue-100 dark:border-blue-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">Total Revenue</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {currency === 'TZS' ? 'TZS' : '$'} 0
+                                </p>
+                            </div>
+                            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-2">Completed Transactions</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">0</p>
+                            </div>
+                            <div className="bg-amber-50 dark:bg-amber-900/20 p-6 rounded-2xl border border-amber-100 dark:border-amber-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2">Pending</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">0</p>
+                            </div>
+                            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-2xl border border-purple-100 dark:border-purple-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-2">This Month</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {currency === 'TZS' ? 'TZS' : '$'} 0
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-[#0A1B2E]/40 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                For detailed financial analytics, reports, and transaction management, please visit the <strong>Admin Dashboard → Financial</strong> section.
+                            </p>
+                            <button
+                                onClick={() => onNavigate?.('dashboard')}
+                                className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+                            >
+                                Go to Admin Dashboard
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'finance' && user.role === UserRole.COURIER && (
+                    <div className="bg-white dark:bg-[#0F172A] rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700/50">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Earnings & Withdrawals</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-2">Total Balance</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {currency === 'TZS' ? 'TZS' : '$'} {totalBalance.toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border border-blue-100 dark:border-blue-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">This Month</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {currency === 'TZS' ? 'TZS' : '$'} {
+                                        earnings
+                                                    .filter((e: any) => {
+                                                        const date = e.createdAt?.toDate ? e.createdAt.toDate() : e.created_at?.toDate ? e.created_at.toDate() : new Date(e.createdAt || e.created_at || 0);
+                                                        const now = new Date();
+                                                        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear() && e.status === 'COMPLETED';
+                                                    })
+                                            .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0)
+                                            .toLocaleString()
+                                    }
+                                </p>
+                            </div>
+                            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-2xl border border-purple-100 dark:border-purple-800/50 shadow-sm">
+                                <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-2">Total Deliveries</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {earnings.filter((e: any) => e.status === 'COMPLETED').length}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* Withdrawal Methods */}
+                            <div className="bg-gray-50 dark:bg-[#0A1B2E]/40 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="font-bold text-gray-900 dark:text-white">
+                                        Withdrawal Methods (where you'll receive payouts)
+                                    </h4>
+                                    <button 
+                                        onClick={() => setShowAddWithdrawalMethod(true)} 
+                                        className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-colors"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+
+                                {withdrawalMethods.length === 0 ? (
+                                    <p className="text-sm text-gray-500">No withdrawal methods added yet. Add one to receive your earnings.</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {withdrawalMethods.map(wm => (
+                                            <div key={wm.id} className="flex items-center justify-between bg-white dark:bg-[#0F172A] rounded-2xl p-4 border border-gray-100 dark:border-gray-700/50">
+                                                <div>
+                                                    <p className="font-bold text-gray-900 dark:text-white">{wm.provider}</p>
+                                                    <p className="text-xs text-gray-500">{wm.number} • {wm.name}{wm.bankName ? ` • ${wm.bankName}` : ''}</p>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await deleteDoc(doc(firestore, 'courierWithdrawalMethods', wm.id));
+                                                            setWithdrawalMethods(prev => prev.filter(x => x.id !== wm.id));
+                                                            notify('Withdrawal method removed', 'info');
+                                                        } catch (error) {
+                                                            console.error('Failed to remove withdrawal method:', error);
+                                                            notify('Failed to remove withdrawal method', 'error');
+                                                        }
+                                                    }}
+                                                    className="text-red-600 dark:text-red-400 font-bold text-sm hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Withdraw Button */}
+                            {totalBalance > 0 && withdrawalMethods.length > 0 && (
+                                <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800/50">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-gray-900 dark:text-white mb-1">Ready to Withdraw</h4>
+                                            <p className="text-sm text-gray-500">You have {currency === 'TZS' ? 'TZS' : '$'} {totalBalance.toLocaleString()} available for withdrawal</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowWithdrawModal(true)}
+                                            className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors"
+                                        >
+                                            Request Withdrawal
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Earnings History */}
+                            <div className="bg-gray-50 dark:bg-[#0A1B2E]/40 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
+                                <h4 className="font-bold text-gray-900 dark:text-white mb-4">Earnings History</h4>
+                                {earnings.length === 0 ? (
+                                    <p className="text-sm text-gray-500">No earnings yet. Complete deliveries to start earning.</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {earnings.slice(0, 20).map((earning: any) => (
+                                            <div key={earning.id} className="flex items-center justify-between bg-white dark:bg-[#0F172A] rounded-2xl p-4 border border-gray-100 dark:border-gray-700/50">
+                                                <div>
+                                                    <p className="font-bold text-gray-900 dark:text-white">
+                                                        {earning.description || 'Delivery Commission'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {earning.createdAt?.toDate 
+                                                            ? earning.createdAt.toDate().toLocaleDateString() 
+                                                            : earning.created_at?.toDate 
+                                                            ? earning.created_at.toDate().toLocaleDateString() 
+                                                            : new Date(earning.createdAt || earning.created_at || '').toLocaleDateString()}
+                                                        {' • '}
+                                                        <span className={`font-bold ${
+                                                            earning.status === 'COMPLETED' ? 'text-emerald-600' : 
+                                                            earning.status === 'PENDING' ? 'text-yellow-600' : 
+                                                            'text-red-600'
+                                                        }`}>
+                                                            {earning.status}
+                                                        </span>
+                                                    </p>
+                                                    {earning.reference_id && (
+                                                        <p className="text-xs text-gray-400 font-mono mt-1">Ref: {earning.reference_id}</p>
+                                                    )}
+                                                </div>
+                                                <span className="font-mono font-bold text-emerald-600">
+                                                    +{currency === 'TZS' ? 'TZS' : '$'} {Number(earning.amount || 0).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Add Withdrawal Method Modal */}
+                        {showAddWithdrawalMethod && (
+                            <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="bg-white dark:bg-[#0F172A] rounded-[2rem] w-full max-w-md p-6 border border-gray-100 dark:border-gray-700/50 shadow-2xl">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="font-bold text-gray-900 dark:text-white">Add Withdrawal Method</h4>
+                                        <button onClick={() => setShowAddWithdrawalMethod(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Provider</label>
+                                            <select 
+                                                value={newWithdrawalMethod.provider} 
+                                                onChange={e => setNewWithdrawalMethod(prev => ({ ...prev, provider: e.target.value }))} 
+                                                className="w-full px-4 py-3 rounded-xl border bg-gray-50 dark:bg-[#0A1B2E] border-gray-200 dark:border-gray-700/50 outline-none text-gray-900 dark:text-white"
+                                            >
+                                                {['M-Pesa','Tigo Pesa','Airtel Money','Bank'].map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">{newWithdrawalMethod.provider === 'Bank' ? 'Account Number' : 'Phone Number'}</label>
+                                            <input 
+                                                value={newWithdrawalMethod.number} 
+                                                onChange={e => setNewWithdrawalMethod(prev => ({ ...prev, number: e.target.value }))} 
+                                                className="w-full px-4 py-3 rounded-xl border bg-gray-50 dark:bg-[#0A1B2E] border-gray-200 dark:border-gray-700/50 outline-none text-gray-900 dark:text-white" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Account Name</label>
+                                            <input 
+                                                value={newWithdrawalMethod.name} 
+                                                onChange={e => setNewWithdrawalMethod(prev => ({ ...prev, name: e.target.value }))} 
+                                                className="w-full px-4 py-3 rounded-xl border bg-gray-50 dark:bg-[#0A1B2E] border-gray-200 dark:border-gray-700/50 outline-none text-gray-900 dark:text-white" 
+                                            />
+                                        </div>
+                                        {newWithdrawalMethod.provider === 'Bank' && (
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Bank Name</label>
+                                                <input 
+                                                    value={newWithdrawalMethod.bankName} 
+                                                    onChange={e => setNewWithdrawalMethod(prev => ({ ...prev, bankName: e.target.value }))} 
+                                                    className="w-full px-4 py-3 rounded-xl border bg-gray-50 dark:bg-[#0A1B2E] border-gray-200 dark:border-gray-700/50 outline-none text-gray-900 dark:text-white" 
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="flex justify-end gap-3 pt-2">
+                                            <button 
+                                                onClick={() => {
+                                                    setShowAddWithdrawalMethod(false);
+                                                    setNewWithdrawalMethod({ provider: 'M-Pesa', number: '', name: '', bankName: '' });
+                                                }} 
+                                                disabled={isSavingWithdrawalMethod}
+                                                className="px-6 py-3 rounded-xl font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!newWithdrawalMethod.number || !newWithdrawalMethod.name) { 
+                                                        notify('Please fill all required fields', 'error'); 
+                                                        return; 
+                                                    }
+                                                    setIsSavingWithdrawalMethod(true);
+                                                    try {
+                                                        const docRef = await addDoc(collection(firestore, 'courierWithdrawalMethods'), {
+                                                            courierId: user.id,
+                                                            provider: newWithdrawalMethod.provider,
+                                                            number: newWithdrawalMethod.number,
+                                                            name: newWithdrawalMethod.name,
+                                                            bankName: newWithdrawalMethod.bankName || '',
+                                                            createdAt: serverTimestamp()
+                                                        });
+                                                        setWithdrawalMethods(prev => [{ id: docRef.id, courierId: user.id, ...newWithdrawalMethod, createdAt: new Date() }, ...prev]);
+                                                        setShowAddWithdrawalMethod(false);
+                                                        setNewWithdrawalMethod({ provider: 'M-Pesa', number: '', name: '', bankName: '' });
+                                                        notify('Withdrawal method added successfully', 'success');
+                                                    } catch (error: any) {
+                                                        console.error('Error saving withdrawal method:', error);
+                                                        notify(`Failed to save withdrawal method: ${error.message}`, 'error');
+                                                    } finally {
+                                                        setIsSavingWithdrawalMethod(false);
+                                                    }
+                                                }}
+                                                disabled={isSavingWithdrawalMethod}
+                                                className="px-8 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                            >
+                                                {isSavingWithdrawalMethod ? (
+                                                    <>
+                                                        <Loader2 size={18} className="animate-spin" />
+                                                        Saving...
+                                                    </>
+                                                ) : (
+                                                    'Save'
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Withdraw Modal */}
+                        {showWithdrawModal && (
+                            <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="bg-white dark:bg-[#0F172A] rounded-[2rem] w-full max-w-md p-6 border border-gray-100 dark:border-gray-700/50 shadow-2xl">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="font-bold text-gray-900 dark:text-white">Request Withdrawal</h4>
+                                        <button onClick={() => setShowWithdrawModal(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Available Balance</label>
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                {currency === 'TZS' ? 'TZS' : '$'} {totalBalance.toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Withdrawal Amount</label>
+                                            <input 
+                                                type="number"
+                                                value={withdrawAmount} 
+                                                onChange={e => setWithdrawAmount(e.target.value)} 
+                                                max={totalBalance}
+                                                min={1000}
+                                                className="w-full px-4 py-3 rounded-xl border bg-gray-50 dark:bg-[#0A1B2E] border-gray-200 dark:border-gray-700/50 outline-none text-gray-900 dark:text-white" 
+                                                placeholder="Enter amount"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">Minimum withdrawal: {currency === 'TZS' ? 'TZS' : '$'} 1,000</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-2 block">Withdrawal Method</label>
+                                            <div className="space-y-2">
+                                                {withdrawalMethods.map(wm => (
+                                                    <label
+                                                        key={wm.id}
+                                                        className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                                                            selectedWithdrawalMethod === wm.id
+                                                                ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                                                                : 'border-gray-200 dark:border-gray-700 hover:border-blue-400'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name="withdrawalMethod"
+                                                            value={wm.id}
+                                                            checked={selectedWithdrawalMethod === wm.id}
+                                                            onChange={(e) => setSelectedWithdrawalMethod(e.target.value)}
+                                                            className="w-4 h-4 text-blue-600"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <p className="font-bold text-gray-900 dark:text-white">{wm.provider}</p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">{wm.number} • {wm.name}</p>
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-3 pt-2">
+                                            <button 
+                                                onClick={() => {
+                                                    setShowWithdrawModal(false);
+                                                    setWithdrawAmount('');
+                                                    setSelectedWithdrawalMethod('');
+                                                }} 
+                                                disabled={isProcessingWithdrawal}
+                                                className="px-6 py-3 rounded-xl font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    const amount = Number(withdrawAmount);
+                                                    if (!amount || amount < 1000) {
+                                                        notify('Minimum withdrawal amount is 1,000', 'error');
+                                                        return;
+                                                    }
+                                                    if (amount > totalBalance) {
+                                                        notify('Insufficient balance', 'error');
+                                                        return;
+                                                    }
+                                                    if (!selectedWithdrawalMethod) {
+                                                        notify('Please select a withdrawal method', 'error');
+                                                        return;
+                                                    }
+                                                    setIsProcessingWithdrawal(true);
+                                                    try {
+                                                        const method = withdrawalMethods.find(wm => wm.id === selectedWithdrawalMethod);
+                                                        // Create withdrawal request transaction
+                                                        await addDoc(collection(firestore, 'transactions'), {
+                                                            userId: user.id,
+                                                            recipientId: user.id,
+                                                            amount: amount,
+                                                            currency: 'TZS',
+                                                            type: 'WITHDRAWAL',
+                                                            status: 'PENDING',
+                                                            description: `Withdrawal request to ${method?.provider}`,
+                                                            reference_id: `WDR-${Date.now()}`,
+                                                            withdrawalMethodId: selectedWithdrawalMethod,
+                                                            createdAt: serverTimestamp()
+                                                        });
+                                                        notify('Withdrawal request submitted. Processing may take 1-3 business days.', 'success');
+                                                        setShowWithdrawModal(false);
+                                                        setWithdrawAmount('');
+                                                        setSelectedWithdrawalMethod('');
+                                                        // Note: Withdrawal will appear in earnings history once processed
+                                                        // User can refresh the page to see updated data
+                                                    } catch (error: any) {
+                                                        console.error('Error processing withdrawal:', error);
+                                                        notify(`Failed to process withdrawal: ${error.message}`, 'error');
+                                                    } finally {
+                                                        setIsProcessingWithdrawal(false);
+                                                    }
+                                                }}
+                                                disabled={isProcessingWithdrawal || !withdrawAmount || !selectedWithdrawalMethod}
+                                                className="px-8 py-3 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                            >
+                                                {isProcessingWithdrawal ? (
+                                                    <>
+                                                        <Loader2 size={18} className="animate-spin" />
+                                                        Processing...
+                                                    </>
+                                                ) : (
+                                                    'Request Withdrawal'
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
                 {activeTab === 'finance' && (user.role === UserRole.DOCTOR || user.role === UserRole.PHARMACY) && (
                     <div className="bg-white dark:bg-[#0F172A] rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-gray-700/50">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Financial Overview</h2>

@@ -126,8 +126,25 @@ export const AdminVerificationReview: React.FC = () => {
           await updateDoc(doctorRef, cleanFirestoreData({
             isTrusted: reviewAction === 'approve',
             verificationStatus: newStatus,
+            isActive: reviewAction === 'approve', // Ensure doctor is active when verified
             updatedAt: serverTimestamp()
           }));
+        } else {
+          // If doctor document doesn't exist, create it from user data
+          const userRef = doc(firestore, 'users', selectedVerification.userId);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            await setDoc(doctorRef, cleanFirestoreData({
+              ...userData,
+              isTrusted: reviewAction === 'approve',
+              verificationStatus: newStatus,
+              isActive: reviewAction === 'approve',
+              role: UserRole.DOCTOR,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }));
+          }
         }
       } else if (selectedVerification.userRole === UserRole.COURIER) {
         const courierRef = doc(firestore, 'couriers', selectedVerification.userId);

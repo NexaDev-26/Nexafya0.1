@@ -8,7 +8,8 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, Check, X, ArrowUp, Calendar, Zap, Crown, Sparkles } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
-import { subscriptionService, Subscription, SubscriptionPlan } from '../services/subscriptionService';
+import { subscriptionService } from '../services/subscriptionService';
+import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../types/subscription';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { paymentService } from '../services/paymentService';
 
@@ -78,7 +79,11 @@ export const SubscriptionManagement: React.FC = () => {
     }
   };
 
-  const plans: SubscriptionPlan[] = ['Basic', 'Professional', 'Enterprise'];
+  const plans: SubscriptionPlan[] = [
+    SubscriptionPlan.BASIC,
+    SubscriptionPlan.PROFESSIONAL,
+    SubscriptionPlan.ENTERPRISE,
+  ];
   const planIcons = {
     Basic: Sparkles,
     Professional: Zap,
@@ -96,7 +101,7 @@ export const SubscriptionManagement: React.FC = () => {
     );
   }
 
-  const isActive = subscription && subscription.status === 'ACTIVE';
+  const isActive = subscription && subscription.status === SubscriptionStatus.ACTIVE;
   const daysUntilExpiry = subscription && subscription.endDate
     ? Math.ceil((new Date(subscription.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -211,7 +216,9 @@ export const SubscriptionManagement: React.FC = () => {
                     <h4 className="text-lg font-bold text-gray-900 dark:text-gray-800">{plan}</h4>
                   </div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-800 mb-2">
-                    {plan === 'Basic' ? 'Free' : `TZS ${plan === 'Professional' ? '50,000' : '150,000'}`}
+                    {plan === SubscriptionPlan.BASIC 
+                      ? 'Free' 
+                      : `TZS ${plan === SubscriptionPlan.PROFESSIONAL ? '150,000' : '300,000'}`}
                     <span className="text-sm font-normal text-gray-500">/mo</span>
                   </p>
                   <button
