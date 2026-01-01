@@ -289,6 +289,38 @@ class SubscriptionService {
   }
 
   /**
+   * Downgrade subscription
+   */
+  async downgradeSubscription(
+    userId: string,
+    newPlan: SubscriptionPlan,
+    paymentMethod: string
+  ): Promise<void> {
+    try {
+      const currentSub = await this.getSubscription(userId);
+      if (!currentSub) {
+        throw new Error('No active subscription found');
+      }
+
+      const planDetails = await this.getPlanDetails(newPlan, currentSub.userRole);
+
+      // For downgrade, keep the current end date but update plan for next renewal
+      const subRef = doc(firestore, 'subscriptions', userId);
+      await updateDoc(subRef, {
+        plan: newPlan,
+        price: planDetails.price,
+        features: planDetails.features,
+        limits: planDetails.limits,
+        // Keep current endDate, changes take effect on renewal
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Downgrade subscription error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Check if subscription is active
    */
   async isSubscriptionActive(userId: string): Promise<boolean> {

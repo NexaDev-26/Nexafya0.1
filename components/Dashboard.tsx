@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserRole, Appointment, Challenge, HealthPlan } from '../types';
-import { Calendar, Video, Users, Wallet, Bot, ShoppingBag, Shield, FileText, Pill, Activity, Trophy, Flame, Droplet, Dumbbell, Utensils, CheckCircle, AlertOctagon, PenTool, AlertTriangle, PhoneCall, MapPin, Clock, CheckSquare, Camera, Ambulance, Flame as Fire, ShieldAlert, Plus } from 'lucide-react';
+import { Calendar, Video, Users, Wallet, Bot, ShoppingBag, Shield, FileText, Pill, Activity, Trophy, Flame, Droplet, Dumbbell, Utensils, CheckCircle, AlertOctagon, PenTool, AlertTriangle, PhoneCall, MapPin, Clock, CheckSquare, Camera, Ambulance, Flame as Fire, ShieldAlert, Plus, Package } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { MOCK_CHALLENGES, MOCK_HEALTH_PLANS, MOCK_MEDICINES } from '../constants';
@@ -516,6 +516,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             ))}
                         </div>
                     </div>
+
+                    {/* Quick Actions Widget - Recent Orders */}
+                    {user?.role === UserRole.PATIENT && (
+                        <div className="bg-white dark:bg-[#0F172A] p-5 md:p-6 rounded-3xl md:rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Package size={20} className="text-blue-600 dark:text-blue-400" /> Recent Orders
+                                </h3>
+                                <button 
+                                    onClick={() => onNavigate('orders')}
+                                    className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    View All
+                                </button>
+                            </div>
+                            <div className="space-y-3">
+                                {/* This would be populated with actual recent orders from Firestore */}
+                                <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                                    <Package size={24} className="mx-auto mb-2 opacity-50" />
+                                    <p>No recent orders</p>
+                                    <button 
+                                        onClick={() => onNavigate('pharmacy')}
+                                        className="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline text-xs"
+                                    >
+                                        Browse Pharmacy →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

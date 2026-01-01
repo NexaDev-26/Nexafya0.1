@@ -47,7 +47,8 @@ import { NotificationProvider, useNotification } from './components/Notification
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PreferencesProvider } from './contexts/PreferencesContext';
 import { DarkModeProvider, useDarkMode } from './contexts/DarkModeContext';
-import { ErrorBoundary } from './components/ErrorBoundary'; 
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { BackToTop } from './components/BackToTop'; 
 import { UserRole, Article, Appointment, HealthRecord, FamilyMember } from './types';
 import { MOCK_ARTICLES } from './constants'; 
 import { db } from './services/db'; 
@@ -330,7 +331,7 @@ const MainApp: React.FC = () => {
       case 'patients':
         return <Patients onNavigate={handleNavigate} />;
       case 'orders':
-        return <Orders user={user} />;
+        return <Orders user={user} onNavigate={handleNavigate} />;
       case 'inventory':
         return <Pharmacy />; 
       case 'couriers':
@@ -444,6 +445,7 @@ const MainApp: React.FC = () => {
       >
         {renderAuthenticatedView()}
       </Layout>
+      <BackToTop />
       
       {/* Onboarding Tour */}
       {showOnboarding && user && (

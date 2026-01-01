@@ -903,10 +903,14 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
                                           {article.isPremium && <div className="absolute top-3 right-3 bg-amber-400 text-black text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 shadow-sm"><Crown size={10} /> Premium</div>}
                                           <button
                                               onClick={(e) => handleToggleBookmark(e, article)}
-                                              className="absolute top-3 left-3 p-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full hover:bg-white dark:hover:bg-gray-800 transition-colors"
-                                              title="Remove from bookmarks"
+                                              className={`absolute top-3 left-3 p-2 backdrop-blur-sm rounded-full transition-colors ${
+                                                  bookmarkedArticleIds.includes(article.id)
+                                                      ? 'bg-blue-600/90 text-white'
+                                                      : 'bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
+                                              }`}
+                                              title={bookmarkedArticleIds.includes(article.id) ? 'Remove from bookmarks' : 'Save to bookmarks'}
                                           >
-                                              <Bookmark size={14} fill="currentColor" className="text-blue-600" />
+                                              <Bookmark size={14} fill={bookmarkedArticleIds.includes(article.id) ? "currentColor" : "none"} />
                                           </button>
                                       </div>
                                       <div className="flex-1 flex flex-col">
@@ -946,6 +950,91 @@ export const Articles: React.FC<ArticlesProps> = ({ user, articles, setArticles,
                                               </div>
                                               <span className="text-xs text-gray-400">{article.readTime} min</span>
                                           </div>
+                                          
+                                          {/* Author Details Section */}
+                                          {authorDetails[article.authorId] && (
+                                              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                                  <div 
+                                                      className="flex items-center gap-3 cursor-pointer group"
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (onViewAuthor) {
+                                                              onViewAuthor(article.authorId);
+                                                          }
+                                                      }}
+                                                  >
+                                                      <div className="relative flex-shrink-0">
+                                                          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-colors">
+                                                              {authorAvatars[article.authorId] ? (
+                                                                  <img 
+                                                                      src={authorAvatars[article.authorId]} 
+                                                                      alt={authorDetails[article.authorId].name}
+                                                                      className="w-full h-full object-cover"
+                                                                      onError={(e) => {
+                                                                          const target = e.target as HTMLImageElement;
+                                                                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[article.authorId].name)}&background=random&size=48`;
+                                                                      }}
+                                                                  />
+                                                              ) : (
+                                                                  <img 
+                                                                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(authorDetails[article.authorId].name)}&background=random&size=48`} 
+                                                                      alt={authorDetails[article.authorId].name}
+                                                                      className="w-full h-full object-cover"
+                                                                  />
+                                                              )}
+                                                          </div>
+                                                          {authorDetails[article.authorId].isTrusted && (
+                                                              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900">
+                                                                  <CheckCircle size={10} className="text-white" fill="currentColor" />
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                      <div className="flex-1 min-w-0">
+                                                          <h4 className="font-bold text-xs text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                                                              {authorDetails[article.authorId].name}
+                                                          </h4>
+                                                          <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{authorDetails[article.authorId].specialty}</p>
+                                                          {authorDetails[article.authorId].rating > 0 && (
+                                                              <div className="flex items-center gap-1 mt-0.5">
+                                                                  <Star size={10} className="text-yellow-500 fill-current" />
+                                                                  <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300">
+                                                                      {authorDetails[article.authorId].rating.toFixed(1)}
+                                                                  </span>
+                                                                  {authorReviews[article.authorId] && authorReviews[article.authorId].length > 0 && (
+                                                                      <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                                          ({authorReviews[article.authorId].length})
+                                                                      </span>
+                                                                  )}
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  </div>
+                                                  
+                                                  {/* Stats Row */}
+                                                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                                      <div className="flex items-center gap-3">
+                                                          <div className="flex items-center gap-1">
+                                                              <Heart size={12} className="text-red-500" />
+                                                              <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                                  {articleStats[article.id]?.likes || article.likes || 0}
+                                                              </span>
+                                                          </div>
+                                                          <div className="flex items-center gap-1">
+                                                              <Bookmark size={12} className="text-blue-500" />
+                                                              <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                                  {articleStats[article.id]?.saves || 0}
+                                                              </span>
+                                                          </div>
+                                                          <div className="flex items-center gap-1">
+                                                              <Share2 size={12} className="text-green-500" />
+                                                              <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">
+                                                                  {articleStats[article.id]?.shares || article.shares || 0}
+                                                              </span>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          )}
                                       </div>
                                   </div>
                               ))}

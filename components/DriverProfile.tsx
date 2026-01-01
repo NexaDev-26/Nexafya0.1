@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
-import { User, Courier } from '../types';
-import { Save, User as UserIcon, Truck, Star, Package, Phone, Mail, MapPin, ArrowLeft, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Courier, UserRole } from '../types';
+import { Save, User as UserIcon, Truck, Star, Package, Phone, Mail, MapPin, ArrowLeft, Shield, Users, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
+import { db } from '../services/db';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DriverProfileProps {
   courier?: Courier; // Optional: If viewing another courier
@@ -12,6 +14,9 @@ interface DriverProfileProps {
 
 export const DriverProfile: React.FC<DriverProfileProps> = ({ courier, user, onBack }) => {
   const { notify } = useNotification();
+  const { user: currentUser } = useAuth();
+  const [availableCouriers, setAvailableCouriers] = useState<Courier[]>([]);
+  const [loadingCouriers, setLoadingCouriers] = useState(false);
   
   // Mock initial data based on props
   const initialData = courier ? {
@@ -36,6 +41,40 @@ export const DriverProfile: React.FC<DriverProfileProps> = ({ courier, user, onB
 
   const [formData, setFormData] = useState(initialData);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Fetch available couriers
+  useEffect(() => {
+    const loadCouriers = async () => {
+      setLoadingCouriers(true);
+      try {
+        const couriersData = await db.getCouriers();
+        // Map to Courier type
+        const mappedCouriers: Courier[] = couriersData.map((c: any) => ({
+          id: c.id,
+          name: c.name || 'Courier',
+          vehicle: c.vehicle || 'Motorcycle',
+          status: c.status || 'Offline',
+          currentLocation: c.currentLocation || c.location || 'Not specified',
+          ordersDelivered: c.ordersDelivered || c.orders_delivered || 0,
+          rating: c.rating || 0,
+          trustTier: c.trustTier || c.trust_tier,
+          isTrusted: c.isTrusted || c.is_trusted || false,
+          verificationStatus: c.verificationStatus || c.verification_status || 'Pending',
+          phone: c.phone || '',
+          email: c.email || '',
+          avatar: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'Courier')}&background=random`
+        }));
+        setAvailableCouriers(mappedCouriers);
+      } catch (error) {
+        console.error('Failed to load couriers:', error);
+        notify('Failed to load couriers', 'error');
+      } finally {
+        setLoadingCouriers(false);
+      }
+    };
+    
+    loadCouriers();
+  }, [notify]);
 
   const handleSave = () => {
       setIsEditing(false);
@@ -171,6 +210,101 @@ export const DriverProfile: React.FC<DriverProfileProps> = ({ courier, user, onB
                 </div>
             </div>
         </div>
+
+        {/* Available Couriers Section */}
+        {currentUser?.role === UserRole.PHARMACY && (
+          <div className="mt-8 bg-white dark:bg-[#0F172A] rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Users size={24} className="text-blue-600 dark:text-blue-400" />
+                  Available Couriers
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  View and manage couriers for order delivery
+                </p>
+              </div>
+            </div>
+
+            {loadingCouriers ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">Loading couriers...</p>
+              </div>
+            ) : availableCouriers.length === 0 ? (
+              <div className="text-center py-8">
+                <Truck className="mx-auto text-gray-300 mb-4" size={48} />
+                <p className="text-gray-500 dark:text-gray-400 font-medium">No couriers available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {availableCouriers.map((c) => (
+                  <div 
+                    key={c.id} 
+                    className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-start gap-3 mb-3">
+                      <img 
+                        src={c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`}
+                        alt={c.name}
+                        className="w-12 h-12 rounded-full border-2 border-white dark:border-gray-700"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-gray-900 dark:text-white truncate">{c.name}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+                          <Truck size={12} />
+                          {c.vehicle}
+                        </p>
+                      </div>
+                      <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        c.status === 'Available' 
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : c.status === 'Busy'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      }`}>
+                        {c.status === 'Available' ? (
+                          <CheckCircle size={12} className="inline mr-1" />
+                        ) : c.status === 'Busy' ? (
+                          <Clock size={12} className="inline mr-1" />
+                        ) : (
+                          <XCircle size={12} className="inline mr-1" />
+                        )}
+                        {c.status}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Rating:</span>
+                        <div className="flex items-center gap-1">
+                          <Star size={14} className="text-amber-500 fill-current" />
+                          <span className="font-bold text-gray-900 dark:text-white">{c.rating.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Orders:</span>
+                        <span className="font-bold text-gray-900 dark:text-white">{c.ordersDelivered}</span>
+                      </div>
+                      {c.currentLocation && (
+                        <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                          <MapPin size={12} />
+                          <span className="text-xs truncate">{c.currentLocation}</span>
+                        </div>
+                      )}
+                      {c.isTrusted && (
+                        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                          <Shield size={12} />
+                          <span className="text-xs font-medium">Verified Courier</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
     </div>
   );
 };

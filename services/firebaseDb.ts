@@ -860,9 +860,18 @@ export const firebaseDb = {
     try {
       const ordersRef = firestoreCollection(firestore, 'orders');
       const field = role === UserRole.PHARMACY ? 'pharmacy_id' : 'patient_id';
-      const q = query(ordersRef, where(field, '==', userId), orderBy('created_at', 'desc'));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      // Try both createdAt and created_at for backward compatibility
+      let q;
+      try {
+        q = query(ordersRef, where(field, '==', userId), orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      } catch (e) {
+        // Fallback to created_at if createdAt doesn't exist
+        q = query(ordersRef, where(field, '==', userId), orderBy('created_at', 'desc'));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      }
     } catch (e) {
       console.error("Fetch orders error", e);
       return [];
@@ -1464,12 +1473,29 @@ export const firebaseDb = {
     }
   },
 
-  getCouriers: async () => {
+  getCouriers: async (): Promise<Courier[]> => {
     try {
       const usersRef = firestoreCollection(firestore, 'users');
       const q = query(usersRef, where('role', '==', 'COURIER'));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || 'Courier',
+          vehicle: (data.vehicle || 'Motorcycle') as 'Motorcycle' | 'Bicycle' | 'Van',
+          status: (data.status || 'Offline') as 'Available' | 'Busy' | 'Offline',
+          currentLocation: data.currentLocation || data.location || 'Not specified',
+          ordersDelivered: Number(data.ordersDelivered || data.orders_delivered || 0),
+          rating: Number(data.rating || 0),
+          trustTier: data.trustTier || data.trust_tier,
+          isTrusted: Boolean(data.isTrusted || data.is_trusted || false),
+          verificationStatus: data.verificationStatus || data.verification_status || 'Pending',
+          phone: data.phone || '',
+          email: data.email || '',
+          avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'Courier')}&background=random`
+        } as Courier;
+      });
     } catch (e) {
       console.error("Get couriers error", e);
       return [];

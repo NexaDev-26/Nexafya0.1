@@ -70,11 +70,11 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
           <div
             key={notification.id}
             className={`
-              pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-lg border animate-in slide-in-from-right-full duration-300 bg-white dark:bg-[#0F172A]
-              ${notification.type === 'success' ? 'border-emerald-500 text-gray-800 dark:text-white' : ''}
-              ${notification.type === 'error' ? 'border-red-500 text-gray-800 dark:text-white' : ''}
-              ${notification.type === 'info' ? 'border-blue-500 text-gray-800 dark:text-white' : ''}
-              ${notification.type === 'warning' ? 'border-amber-500 text-gray-800 dark:text-white' : ''}
+              pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-lg border animate-in slide-in-from-right-full duration-300 bg-white dark:bg-[#0F172A] hover:shadow-xl transition-all
+              ${notification.type === 'success' ? 'border-emerald-500 text-gray-800 dark:text-white bg-emerald-50/50 dark:bg-emerald-900/10' : ''}
+              ${notification.type === 'error' ? 'border-red-500 text-gray-800 dark:text-white bg-red-50/50 dark:bg-red-900/10' : ''}
+              ${notification.type === 'info' ? 'border-blue-500 text-gray-800 dark:text-white bg-blue-50/50 dark:bg-blue-900/10' : ''}
+              ${notification.type === 'warning' ? 'border-amber-500 text-gray-800 dark:text-white bg-amber-50/50 dark:bg-amber-900/10' : ''}
             `}
           >
             <div className="flex-shrink-0 mt-0.5">

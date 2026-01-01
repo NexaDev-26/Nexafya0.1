@@ -15,10 +15,12 @@ interface LogoIconProps {
 export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", size }) => {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const loadLogo = async () => {
       try {
+        setImageError(false); // Reset error state when reloading
         const settings = await settingsService.getSettings();
         if (settings.appLogo) {
           setLogoUrl(settings.appLogo);
@@ -27,6 +29,7 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", siz
         }
       } catch (error) {
         console.error('Error loading logo:', error);
+        // Don't clear logoUrl on error - keep the last known URL
       } finally {
         setLoading(false);
       }
@@ -50,21 +53,35 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className = "w-10 h-10", siz
     };
   }, []);
 
-  // If logo URL exists, display image
+  // Handle image load error - keep the URL but mark as error for fallback
+  const handleImageError = () => {
+    console.warn('Logo image failed to load:', logoUrl);
+    setImageError(true);
+  };
+
+  // If logo URL exists and not loading, try to display it
   if (logoUrl && !loading) {
     return (
       <div className={`${className} bg-white dark:bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200 dark:border-gray-300 overflow-hidden transition-transform group-hover:scale-105`}>
-        <img 
-          src={logoUrl} 
-          alt="NexaFya Logo" 
-          className="w-full h-full object-cover"
-          onError={() => setLogoUrl(null)} // Fallback to default if image fails to load
-        />
+        {!imageError ? (
+          <img 
+            key={logoUrl} // Use key to force remount if URL changes
+            src={logoUrl} 
+            alt="NexaFya Logo" 
+            className="w-full h-full object-cover"
+            onError={handleImageError}
+            onLoad={() => setImageError(false)}
+            loading="eager"
+          />
+        ) : (
+          // Fallback to default icon if image failed to load
+          <Activity className="text-teal-600 dark:text-teal-600" size={size || 24} />
+        )}
       </div>
     );
   }
 
-  // Default icon
+  // Default icon (shown when loading or no logo URL)
   return (
     <div className={`${className} bg-white dark:bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200 dark:border-gray-300 transition-transform group-hover:scale-105`}>
       {size ? (
