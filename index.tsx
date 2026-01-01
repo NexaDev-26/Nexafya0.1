@@ -59,7 +59,7 @@ import { DriverProfile } from './components/DriverProfile';
 import { notificationService } from './services/notificationService';
 import { OnboardingTour } from './components/OnboardingTour';
 import { handleError } from './utils/errorHandler';
-import './style.css'; 
+import './index.css'; 
 
 const MainApp: React.FC = () => {
   const { user, loading: authLoading, signOut, updateProfile } = useAuth();

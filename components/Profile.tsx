@@ -17,7 +17,7 @@ import { DoctorSchedule } from './DoctorSchedule';
 import { storage, storageRefs, db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useTransactions } from '../hooks/useFirestore';
-import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, Timestamp, orderBy } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { cleanFirestoreData } from '../utils/firestoreHelpers';
 import { SubscriptionPackage } from '../types';
 import { firebaseDb } from '../services/firebaseDb';

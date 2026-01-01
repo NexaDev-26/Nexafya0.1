@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
-    host: true,
+    host: '0.0.0.0', // Listen on all network interfaces
+    strictPort: false, // Try next available port if 5174 is taken
     // No proxy needed - Firebase is client-side only
   },
   build: {

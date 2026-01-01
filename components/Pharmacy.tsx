@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { debounce } from 'lodash-es';
 import { Medicine, CartItem, UserRole, PharmacyBranch, SalesRecord, InventoryItem } from '../types';
 import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon } from 'lucide-react';
@@ -143,6 +143,105 @@ export const Pharmacy: React.FC = memo(() => {
     }
   }, [user]);
 
+  // Refresh function for pharmacy orders
+  const handlePharmacyRefresh = useCallback(async () => {
+    setLoadingOrders(true);
+    // The useEffect will automatically reload when loadingOrders changes
+  }, []);
+
+  // Order Details Modal - defined early to avoid hoisting issues
+  const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500">
+          <X size={24} />
+        </button>
+        
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Details</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
+              #{order.orderId || order.id.slice(0, 8).toUpperCase()}
+            </span>
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+              order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+              order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+              order.status === 'DISPATCHED' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+              'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+            }`}>
+              {order.status}
+            </span>
+          </div>
+        </div>
+
+        {/* Customer Info */}
+        <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 mb-4">
+          <h3 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <UserIcon size={18} /> Customer Information
+          </h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">Name:</span>
+              <p className="font-bold text-gray-900 dark:text-white">{order.customer || order.patient_name || 'N/A'}</p>
+            </div>
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">Order Date:</span>
+              <p className="font-bold text-gray-900 dark:text-white">{order.date}</p>
+            </div>
+            <div className="col-span-2">
+              <span className="text-gray-500 dark:text-gray-400">Delivery Address:</span>
+              <p className="font-bold text-gray-900 dark:text-white flex items-center gap-1">
+                <MapPin size={14} /> {order.location}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Order Items */}
+        <div className="mb-4">
+          <h3 className="font-bold text-gray-900 dark:text-white mb-3">Order Items</h3>
+          <div className="space-y-2">
+            {order.items && order.items.length > 0 ? (
+              order.items.map((item: any, idx: number) => (
+                <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-[#0A1B2E] p-3 rounded-xl">
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white">
+                      {item.quantity}x {item.name || item.medicine_name || 'Medicine'}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      TZS {item.price?.toLocaleString() || '0'} each
+                    </p>
+                  </div>
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                    TZS {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No items found</p>
+            )}
+          </div>
+        </div>
+
+        {/* Order Summary */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+            <span className="font-bold text-gray-900 dark:text-white">TZS {order.total?.toLocaleString() || '0'}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-600 dark:text-gray-400">Delivery:</span>
+            <span className="font-bold text-emerald-600 dark:text-emerald-400">Free</span>
+          </div>
+          <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-lg font-bold text-gray-900 dark:text-white">Total:</span>
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">TZS {order.total?.toLocaleString() || '0'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   useEffect(() => {
       const loadData = async () => {
           try {
@@ -161,8 +260,8 @@ export const Pharmacy: React.FC = memo(() => {
                       const snapshot = await getDocs(q);
                       
                       const medsWithPharmacy = await Promise.all(
-                          snapshot.docs.map(async (doc) => {
-                              const data = doc.data();
+                          snapshot.docs.map(async (docSnapshot) => {
+                              const data = docSnapshot.data();
                               const pharmacyId = data.pharmacy_id;
                               
                               // Get pharmacy details
@@ -175,7 +274,8 @@ export const Pharmacy: React.FC = memo(() => {
                                       // Get pharmacy user details
                                       const pharmacyDoc = await getDoc(doc(firestore, 'users', pharmacyId));
                                       if (pharmacyDoc.exists()) {
-                                          pharmacyName = pharmacyDoc.data().name || 'Pharmacy';
+                                          const pharmacyData = pharmacyDoc.data() as { name?: string };
+                                          pharmacyName = pharmacyData.name || 'Pharmacy';
                                       }
                                       
                                       // Get pharmacy branches
@@ -195,7 +295,7 @@ export const Pharmacy: React.FC = memo(() => {
                               }
                               
                               return {
-                                  id: doc.id,
+                                  id: docSnapshot.id,
                                   name: data.name || 'Unknown Medicine',
                                   category: data.category || 'General',
                                   price: Number(data.selling_price || data.price || 0),
@@ -679,172 +779,6 @@ export const Pharmacy: React.FC = memo(() => {
       );
   }
 
-  // Order Details Modal
-  const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative">
-              <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500">
-                  <X size={24} />
-              </button>
-              
-              <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Details</h2>
-                  <div className="flex items-center gap-3 mb-4">
-                      <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
-                          #{order.orderId || order.id.slice(0, 8).toUpperCase()}
-                      </span>
-                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                          order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                          order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                          order.status === 'DISPATCHED' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                          'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                      }`}>
-                          {order.status}
-                      </span>
-                  </div>
-              </div>
-
-              {/* Customer Info */}
-              <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 mb-4">
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <UserIcon size={18} /> Customer Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                          <span className="text-gray-500 dark:text-gray-400">Name:</span>
-                          <p className="font-bold text-gray-900 dark:text-white">{order.customer || order.patient_name || 'N/A'}</p>
-                      </div>
-                      <div>
-                          <span className="text-gray-500 dark:text-gray-400">Order Date:</span>
-                          <p className="font-bold text-gray-900 dark:text-white">{order.date}</p>
-                      </div>
-                      <div className="col-span-2">
-                          <span className="text-gray-500 dark:text-gray-400">Delivery Address:</span>
-                          <p className="font-bold text-gray-900 dark:text-white flex items-center gap-1">
-                              <MapPin size={14} /> {order.location}
-                          </p>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Order Items */}
-              <div className="mb-4">
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-3">Order Items</h3>
-                  <div className="space-y-2">
-                      {order.items && order.items.length > 0 ? (
-                          order.items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-[#0A1B2E] p-3 rounded-xl">
-                                  <div>
-                                      <p className="font-bold text-gray-900 dark:text-white">
-                                          {item.quantity}x {item.name || item.medicine_name || 'Medicine'}
-                                      </p>
-                                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                                          TZS {item.price?.toLocaleString() || '0'} each
-                                      </p>
-                                  </div>
-                                  <p className="font-bold text-emerald-600 dark:text-emerald-400">
-                                      TZS {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
-                                  </p>
-                              </div>
-                          ))
-                      ) : (
-                          <p className="text-gray-500 dark:text-gray-400">No items found</p>
-                      )}
-                  </div>
-              </div>
-
-              {/* Order Summary */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                      <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
-                      <span className="font-bold text-gray-900 dark:text-white">TZS {order.total.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                      <span className="text-gray-600 dark:text-gray-400">Delivery:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">Free</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <span className="text-lg font-bold text-gray-900 dark:text-white">Total:</span>
-                      <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">TZS {order.total.toLocaleString()}</span>
-                  </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {order.status === 'PENDING' && (
-                      <button
-                          onClick={async () => {
-                              try {
-                                  const orderRef = doc(firestore, 'orders', order.id);
-                                  await updateDoc(orderRef, {
-                                      status: 'PROCESSING',
-                                      processing_at: serverTimestamp(),
-                                      updatedAt: serverTimestamp()
-                                  });
-                                  notify('Order status updated to Processing', 'success');
-                                  onClose();
-                              } catch (error) {
-                                  notify('Failed to update order status', 'error');
-                              }
-                          }}
-                          className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
-                      >
-                          Start Processing
-                      </button>
-                  )}
-                  {order.status === 'PROCESSING' && (
-                      <button
-                          onClick={async () => {
-                              try {
-                                  const orderRef = doc(firestore, 'orders', order.id);
-                                  await updateDoc(orderRef, {
-                                      status: 'DISPATCHED',
-                                      dispatched_at: serverTimestamp(),
-                                      updatedAt: serverTimestamp()
-                                  });
-                                  notify('Order dispatched successfully', 'success');
-                                  onClose();
-                              } catch (error) {
-                                  notify('Failed to update order status', 'error');
-                              }
-                          }}
-                          className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                      >
-                          <Truck size={18} /> Dispatch Order
-                      </button>
-                  )}
-                  {order.status === 'DISPATCHED' && (
-                      <button
-                          onClick={async () => {
-                              try {
-                                  const orderRef = doc(firestore, 'orders', order.id);
-                                  await updateDoc(orderRef, {
-                                      status: 'DELIVERED',
-                                      delivered_at: serverTimestamp(),
-                                      updatedAt: serverTimestamp()
-                                  });
-                                  notify('Order marked as delivered', 'success');
-                                  onClose();
-                              } catch (error) {
-                                  notify('Failed to update order status', 'error');
-                              }
-                          }}
-                          className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                      >
-                          <Check size={18} /> Mark Delivered
-                      </button>
-                  )}
-                  <button
-                      onClick={onClose}
-                      className="px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                      Close
-                  </button>
-              </div>
-          </div>
-      </div>
-  );
-
   // Cart handlers
   const handleAddToCart = (medicine: Medicine) => {
     const existingItem = cart.find(item => item.id === medicine.id);
@@ -855,13 +789,11 @@ export const Pharmacy: React.FC = memo(() => {
           : item
       ));
     } else {
-      setCart([...cart, { 
-        id: medicine.id, 
-        name: medicine.name, 
-        price: medicine.price, 
-        quantity: 1,
-        image: medicine.image 
-      }]);
+      const cartItem: CartItem = {
+        ...medicine,
+        quantity: 1
+      };
+      setCart([...cart, cartItem]);
     }
     notify(`${medicine.name} added to cart`, 'success');
   };
@@ -890,8 +822,9 @@ export const Pharmacy: React.FC = memo(() => {
       const firstItem = medicines.find(m => m.id === cart[0].id);
       const pharmacyId = firstItem?.pharmacyId || '';
       const pharmacyName = firstItem?.pharmacyName || 'Pharmacy';
-      const pharmacyBranch = firstItem?.pharmacyBranch || '';
-      const pharmacyLocation = firstItem?.pharmacyLocation || '';
+      // pharmacyBranch and pharmacyLocation are dynamically added but not in Medicine type
+      const pharmacyBranch = (firstItem as any)?.pharmacyBranch || '';
+      const pharmacyLocation = (firstItem as any)?.pharmacyLocation || '';
       
       // Prepare order data
       const orderData = {
@@ -1169,7 +1102,7 @@ export const Pharmacy: React.FC = memo(() => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMedicines.map(med => (
+            {filteredMedicines.map((med, index) => (
               <div 
                 key={med.id} 
                 className="bg-white dark:bg-[#0F172A] rounded-3xl p-6 border border-gray-100 dark:border-gray-700/50 hover:shadow-xl transition-all hover:-translate-y-1 group flex flex-col"
@@ -1211,7 +1144,7 @@ export const Pharmacy: React.FC = memo(() => {
                   )}
                   
                   {/* Pharmacy Info */}
-                  {(med.pharmacyName || med.pharmacyBranch || med.pharmacyLocation) && (
+                  {(med.pharmacyName || (med as any).pharmacyBranch || (med as any).pharmacyLocation) && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 mb-3 border border-blue-100 dark:border-blue-800">
                       {med.pharmacyName && (
                         <div className="flex items-center gap-2 mb-1">
@@ -1219,16 +1152,16 @@ export const Pharmacy: React.FC = memo(() => {
                           <span className="text-xs font-bold text-blue-700 dark:text-blue-400">{med.pharmacyName}</span>
                         </div>
                       )}
-                      {med.pharmacyBranch && (
+                      {(med as any).pharmacyBranch && (
                         <p className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 mb-1">
                           <Building2 size={12} />
-                          {med.pharmacyBranch}
+                          {(med as any).pharmacyBranch}
                         </p>
                       )}
-                      {med.pharmacyLocation && (
+                      {(med as any).pharmacyLocation && (
                         <p className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
                           <MapPin size={12} />
-                          {med.pharmacyLocation}
+                          {(med as any).pharmacyLocation}
                         </p>
                       )}
                     </div>

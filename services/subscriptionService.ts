@@ -210,7 +210,7 @@ class SubscriptionService {
 
       const subscription: Omit<Subscription, 'id'> = {
         userId,
-
+        userRole,
         plan,
         status: SubscriptionStatus.ACTIVE,
         startDate: now.toISOString(),
@@ -477,4 +477,3 @@ export type {
   SubscriptionUsage,
   SubscriptionHistory,
 } from '../types/subscription';
-import { UserRole } from '../types/user';
