@@ -27,7 +27,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     onNavigate, 
     appointments = [], 
 }) => {
-  const { user } = useAuth(); 
+  const { user } = useAuth();
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [loadingRecentOrders, setLoadingRecentOrders] = useState(false); 
   const { notify } = useNotification();
   const { isDarkMode } = useDarkMode();
   const [greeting, setGreeting] = useState('Hello');
@@ -84,6 +86,44 @@ export const Dashboard: React.FC<DashboardProps> = ({
       }
     };
     loadDoctorStats();
+  }, [user?.id, user?.role]);
+
+  // Load recent orders for patient dashboard
+  useEffect(() => {
+    if (user?.role === UserRole.PATIENT && user.id) {
+      setLoadingRecentOrders(true);
+      const ordersRef = collection(firestore, 'orders');
+      const q = query(ordersRef, where('patient_id', '==', user.id));
+      
+      const unsubscribe = onSnapshot(q, 
+        (snapshot) => {
+          const ordersData = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            const createdAt = data.createdAt?.toDate?.() || (data.created_at?.toDate?.()) || new Date();
+            return {
+              id: doc.id,
+              orderId: doc.id.slice(0, 8).toUpperCase(),
+              total: data.total_amount || data.total || 0,
+              status: data.status || 'PENDING',
+              date: createdAt.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric'
+              }),
+              createdAt: createdAt
+            };
+          }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
+          
+          setRecentOrders(ordersData);
+          setLoadingRecentOrders(false);
+        },
+        (error) => {
+          console.error('Recent orders error:', error);
+          setLoadingRecentOrders(false);
+        }
+      );
+
+      return () => unsubscribe();
+    }
   }, [user?.id, user?.role]);
 
   // SOS Countdown Logic
@@ -532,17 +572,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 </button>
                             </div>
                             <div className="space-y-3">
-                                {/* This would be populated with actual recent orders from Firestore */}
-                                <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
-                                    <Package size={24} className="mx-auto mb-2 opacity-50" />
-                                    <p>No recent orders</p>
-                                    <button 
-                                        onClick={() => onNavigate('pharmacy')}
-                                        className="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline text-xs"
-                                    >
-                                        Browse Pharmacy →
-                                    </button>
-                                </div>
+                                {loadingRecentOrders ? (
+                                    <div className="space-y-2">
+                                        {[1, 2].map(i => (
+                                            <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl h-16"></div>
+                                        ))}
+                                    </div>
+                                ) : recentOrders.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                                        <Package size={24} className="mx-auto mb-2 opacity-50" />
+                                        <p>No recent orders</p>
+                                        <button 
+                                            onClick={() => onNavigate('pharmacy')}
+                                            className="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline text-xs"
+                                        >
+                                            Browse Pharmacy →
+                                        </button>
+                                    </div>
+                                ) : (
+                                    recentOrders.map((order) => (
+                                        <div 
+                                            key={order.id}
+                                            onClick={() => onNavigate('orders')}
+                                            className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-3 border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-bold text-sm text-gray-900 dark:text-white">
+                                                        Order #{order.orderId}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{order.date}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                                        TZS {order.total.toLocaleString()}
+                                                    </p>
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                        order.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                        order.status === 'DISPATCHED' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                                        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                    }`}>
+                                                        {order.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}

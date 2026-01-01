@@ -189,7 +189,8 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
     );
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <PullToRefresh onRefresh={handleRefresh} disabled={loading}>
+        <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             {viewingReceipt && <ReceiptModal order={viewingReceipt} onClose={() => setViewingReceipt(null)} />}
 
             <div className="flex flex-col gap-4">
@@ -498,5 +499,6 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
                 )}
             </div>
         </div>
+        </PullToRefresh>
     );
 };

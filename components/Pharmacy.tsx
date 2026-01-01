@@ -21,6 +21,7 @@ import { SupplierManagement } from './SupplierManagement';
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { StockAlerts } from './StockAlerts';
 import { SkeletonLoader } from './SkeletonLoader';
+import { PullToRefresh } from './PullToRefresh';
 
 export const Pharmacy: React.FC = () => {
   const { user } = useAuth();
@@ -347,6 +348,7 @@ export const Pharmacy: React.FC = () => {
       return (
           <>
               {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+              <PullToRefresh onRefresh={handlePharmacyRefresh} disabled={loadingOrders}>
               <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-6 animate-in fade-in duration-500">
               
               {/* Sidebar */}
@@ -653,6 +655,7 @@ export const Pharmacy: React.FC = () => {
                   )}
               </div>
           </div>
+          </PullToRefresh>
           </>
       );
   }
