@@ -6,6 +6,8 @@ import { User as UserIcon, Edit2, Camera, ShieldCheck, Wallet, Plus, Trash2, Use
 import { useNotification } from './NotificationSystem';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { db } from '../services/db';
+import { userSchema, validateAndSanitize, formatValidationError } from '../utils/validation';
+import { handleError, logger } from '../utils/errorHandler';
 import { Settings } from './Settings';
 import { SubscriptionManagement } from './SubscriptionManagement';
 import { NHIFIntegration } from './NHIFIntegration';
@@ -279,10 +281,27 @@ export const Profile: React.FC<ProfileProps> = ({
       setIsEditing(false);
       
       try {
+          // Validate user data
+          const userData = {
+              name: formData.name,
+              email: user.email,
+              phone: user.phone || '+255000000000',
+              role: user.role
+          };
+          
+          const validation = validateAndSanitize(userSchema, userData);
+          if (!validation.success) {
+              const errorMessage = formatValidationError(validation.errors!);
+              notify(errorMessage, 'error');
+              logger.warn('Profile validation failed', { userData, errors: validation.errors });
+              setIsEditing(true); // Re-enable editing on validation failure
+              return;
+          }
+          
           // Save general profile updates
           if (onUpdateUser) {
               onUpdateUser({ 
-                  name: formData.name, 
+                  name: validation.data!.name, 
                   location: formData.location,
                   avatar: avatarPreview 
               });
@@ -307,8 +326,9 @@ export const Profile: React.FC<ProfileProps> = ({
           }
 
           notify(user.role === UserRole.DOCTOR ? 'Profile and professional details updated.' : 'Profile updated successfully.', 'success');
+          logger.info('Profile updated successfully', { userId: user.id, role: user.role });
       } catch (err: any) {
-          notify(err.message, 'error');
+          handleError(err, notify, { userId: user.id, role: user.role });
           setIsSavingDoctor(false);
       }
   };

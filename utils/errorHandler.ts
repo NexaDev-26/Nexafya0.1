@@ -43,6 +43,44 @@ const errorMessages: ErrorMap = {
   'TIMEOUT': 'Request timed out. Please try again.',
 };
 
+/**
+ * Logging service with different log levels
+ * In production, this should integrate with Sentry/LogRocket
+ */
+type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+
+class Logger {
+  private isDevelopment = import.meta.env.DEV;
+  
+  error(message: string, error?: any, context?: any) {
+    if (this.isDevelopment) {
+      console.error(`[ERROR] ${message}`, error, context);
+    }
+    // TODO: In production, send to error tracking service
+    // Example: Sentry.captureException(error, { extra: context, tags: { message } });
+  }
+  
+  warn(message: string, context?: any) {
+    if (this.isDevelopment) {
+      console.warn(`[WARN] ${message}`, context);
+    }
+  }
+  
+  info(message: string, context?: any) {
+    if (this.isDevelopment) {
+      console.log(`[INFO] ${message}`, context);
+    }
+  }
+  
+  debug(message: string, context?: any) {
+    if (this.isDevelopment) {
+      console.debug(`[DEBUG] ${message}`, context);
+    }
+  }
+}
+
+export const logger = new Logger();
+
 export const getErrorMessage = (error: any): string => {
   if (!error) return 'An unexpected error occurred. Please try again.';
   
@@ -73,15 +111,19 @@ export const getErrorMessage = (error: any): string => {
   return 'Something went wrong. Please try again.';
 };
 
-export const handleError = (error: any, notify?: (message: string, type?: string) => void): void => {
+export const handleError = (
+  error: any,
+  notify?: (message: string, type?: string) => void,
+  context?: any
+): void => {
   const message = getErrorMessage(error);
-  console.error('Error:', error);
+  logger.error(message, error, context);
   
   if (notify) {
     notify(message, 'error');
   } else {
     // Fallback to console if notify not available
-    console.error('Error message:', message);
+    logger.error('Error notification not available', error, context);
   }
 };
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Package, Clock, CheckCircle, Truck, MapPin, MoreHorizontal, Printer, X, Eye, ShoppingBag, ArrowRight, Store, Building2, Phone, Mail, RefreshCw, Sparkles, ShoppingCart, Search, Filter, RotateCcw } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { User, UserRole } from '../types';
@@ -16,7 +16,7 @@ interface OrdersProps {
     onNavigate?: (view: string) => void;
 }
 
-export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
+const OrdersComponent: React.FC<OrdersProps> = ({ user, onNavigate }) => {
     const { notify } = useNotification();
     const [viewingReceipt, setViewingReceipt] = useState<any | null>(null);
     const [orders, setOrders] = useState<any[]>([]);
@@ -33,7 +33,7 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
     useEffect(() => {
         if (!user) return;
 
-        setLoading(true);
+                setLoading(true);
         
         // Use real-time listener for orders
         // Note: Using query without orderBy to avoid index requirement, then sorting client-side
@@ -117,7 +117,7 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
             <div className="mt-2 text-center">
                 <span className={`text-[11px] font-bold uppercase block ${
                     completed ? 'text-emerald-600 dark:text-emerald-400' : active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
-                }`}>{label}</span>
+            }`}>{label}</span>
                 {timestamp && (
                     <span className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 block">{timestamp}</span>
                 )}
@@ -195,9 +195,9 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
 
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold font-display text-gray-900 dark:text-white">{user?.role === UserRole.PATIENT ? 'My Orders' : 'Pharmacy Orders'}</h2>
-                        <p className="text-gray-500 dark:text-gray-300">{user?.role === UserRole.PATIENT ? 'Track your medication deliveries.' : 'Track and fulfill incoming medication requests.'}</p>
+                <div>
+                    <h2 className="text-2xl font-bold font-display text-gray-900 dark:text-white">{user?.role === UserRole.PATIENT ? 'My Orders' : 'Pharmacy Orders'}</h2>
+                    <p className="text-gray-500 dark:text-gray-300">{user?.role === UserRole.PATIENT ? 'Track your medication deliveries.' : 'Track and fulfill incoming medication requests.'}</p>
                     </div>
                     {user?.role === UserRole.PATIENT && onNavigate && (
                         <button
@@ -255,7 +255,7 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
                             <p className="text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
                                 {user?.role === UserRole.PATIENT 
                                     ? "Start shopping for your health needs! Browse our verified pharmacy network and get authentic medicines delivered to your door."
-                                    : "No orders to fulfill. Orders will appear here when patients place them."}
+                            : "No orders to fulfill. Orders will appear here when patients place them."}
                             </p>
                             
                             {user?.role === UserRole.PATIENT && onNavigate && (
@@ -395,37 +395,37 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
                                 </div>
                                 <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50">
                                     <div className="flex justify-between w-full max-w-3xl mx-auto">
-                                        <TimelineStep 
+                                    <TimelineStep 
                                             label="Order Placed" 
-                                            icon={CheckCircle} 
-                                            active={true} 
+                                        icon={CheckCircle} 
+                                        active={true} 
                                             completed={order.status !== 'PENDING'} 
                                             timestamp={order.status_timestamps?.placed ? order.status_timestamps.placed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : order.date.split(',')[1]?.trim()}
-                                        />
-                                        <TimelineStep 
-                                            label="Processing" 
-                                            icon={Package} 
+                                    />
+                                    <TimelineStep 
+                                        label="Processing" 
+                                        icon={Package} 
                                             active={order.status === 'PROCESSING' || order.status === 'DISPATCHED'} 
                                             completed={order.status === 'DISPATCHED' || order.status === 'DELIVERED'} 
                                             timestamp={order.status_timestamps?.processing?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                             estimate={order.status === 'PROCESSING' ? '15-30 mins' : null}
-                                        />
-                                        <TimelineStep 
-                                            label="Dispatched" 
-                                            icon={Truck} 
+                                    />
+                                    <TimelineStep 
+                                        label="Dispatched" 
+                                        icon={Truck} 
                                             active={order.status === 'DISPATCHED'} 
                                             completed={order.status === 'DELIVERED'} 
                                             timestamp={order.status_timestamps?.dispatched?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                             estimate={order.status === 'DISPATCHED' ? '30-60 mins' : null}
-                                        />
-                                        <TimelineStep 
-                                            label="Delivered" 
-                                            icon={MapPin} 
+                                    />
+                                    <TimelineStep 
+                                        label="Delivered" 
+                                        icon={MapPin} 
                                             active={order.status === 'DELIVERED'} 
                                             completed={order.status === 'DELIVERED'} 
                                             timestamp={order.status_timestamps?.delivered?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                                            isLast={true} 
-                                        />
+                                        isLast={true} 
+                                    />
                                     </div>
                                 </div>
                             </div>
@@ -468,7 +468,7 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
                                             {order.status === 'DISPATCHED' && (
                                                 <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all">
                                                     <Truck size={16} /> Track Delivery
-                                                </button>
+                                        </button>
                                             )}
                                         </>
                                     )}
@@ -489,7 +489,7 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
                                             </button>
                                             <button onClick={() => setViewingReceipt(order)} className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
                                                 <Eye size={16} /> View Receipt
-                                            </button>
+                                        </button>
                                         </>
                                     )}
                                 </div>
@@ -502,3 +502,11 @@ export const Orders: React.FC<OrdersProps> = ({ user, onNavigate }) => {
         </PullToRefresh>
     );
 };
+
+export const Orders = memo(OrdersComponent, (prevProps, nextProps) => {
+  // Custom comparison for memo
+  return prevProps.user?.id === nextProps.user?.id && 
+         prevProps.user?.role === nextProps.user?.role;
+});
+
+Orders.displayName = 'Orders';

@@ -110,7 +110,13 @@ service cloud.firestore {
     // Inventory - pharmacy owners can manage their inventory
     match /inventory/{inventoryId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                     request.resource.data.pharmacy_id == request.auth.uid &&
+                     request.resource.data.keys().hasAll(['pharmacy_id', 'name', 'stock', 'price']);
+      allow update: if isAuthenticated() && 
+                     resource.data.pharmacy_id == request.auth.uid &&
+                     request.resource.data.pharmacy_id == resource.data.pharmacy_id;
+      allow delete: if isAuthenticated() && resource.data.pharmacy_id == request.auth.uid;
     }
     
     // Pharmacy Branches - public read, owners can manage
@@ -137,18 +143,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Orders - users can read their own orders
+    // Orders - users can read their own orders, patients can create, pharmacies can update
     match /orders/{orderId} {
       allow read: if isAuthenticated() && (
         resource.data.patient_id == request.auth.uid || 
         resource.data.pharmacy_id == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                     request.resource.data.patient_id == request.auth.uid &&
+                     request.resource.data.keys().hasAll(['patient_id', 'pharmacy_id', 'items', 'total', 'status']);
       allow update: if isAuthenticated() && (
-        resource.data.pharmacy_id == request.auth.uid ||
+        (resource.data.pharmacy_id == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'processing_at', 'dispatched_at', 'delivered_at', 'updated_at'])) ||
+        (resource.data.patient_id == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['delivery_address', 'updated_at'])) ||
         isAdmin()
       );
+      allow delete: if isAdmin();
     }
     
     // Household Visits - CHWs can manage their visits

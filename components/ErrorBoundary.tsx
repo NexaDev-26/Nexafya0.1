@@ -5,10 +5,12 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import { logger } from '../utils/errorHandler';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface State {
@@ -36,14 +38,18 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error', error, {
+      componentStack: errorInfo.componentStack,
+    });
+    
     this.setState({
       error,
       errorInfo,
     });
-
-    // You can log the error to an error reporting service here
-    // Example: logErrorToService(error, errorInfo);
+    
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
   }
 
   handleReset = () => {
@@ -81,17 +87,19 @@ export class ErrorBoundary extends Component<Props, State> {
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg text-left">
-                <p className="text-sm font-mono text-red-800 dark:text-red-200 break-all">
-                  {this.state.error.toString()}
+                <p className="text-sm font-mono text-red-800 dark:text-red-200 break-all mb-2">
+                  {this.state.error.message || this.state.error.toString()}
                 </p>
                 {this.state.errorInfo && (
                   <details className="mt-2">
-                    <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer">
-                      Stack Trace
+                    <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer hover:underline">
+                      Error Details (Dev Only)
                     </summary>
-                    <pre className="text-xs text-red-700 dark:text-red-300 mt-2 overflow-auto max-h-40">
+                    <pre className="text-xs text-red-700 dark:text-red-300 mt-2 overflow-auto max-h-64 bg-red-100 dark:bg-red-900/20 p-3 rounded">
+                      {this.state.error.stack}
+                      {'\n\n'}
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>

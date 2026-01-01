@@ -1,10 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { debounce } from 'lodash-es';
 import { Medicine, CartItem, UserRole, PharmacyBranch, SalesRecord, InventoryItem } from '../types';
 import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
+import { orderSchema, validateAndSanitize, formatValidationError } from '../utils/validation';
+import { handleError, logger } from '../utils/errorHandler';
 import { useInventory } from '../hooks/useFirestore';
 import { updateDoc, doc, serverTimestamp, collection, getDocs, query, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
@@ -23,7 +26,7 @@ import { StockAlerts } from './StockAlerts';
 import { SkeletonLoader } from './SkeletonLoader';
 import { PullToRefresh } from './PullToRefresh';
 
-export const Pharmacy: React.FC = () => {
+export const Pharmacy: React.FC = memo(() => {
   const { user } = useAuth();
   const { notify } = useNotification();
   
@@ -34,11 +37,27 @@ export const Pharmacy: React.FC = () => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [sortBy, setSortBy] = useState<'default' | 'price-low' | 'price-high' | 'name' | 'popular'>('default');
+  
+  // Debounce search input
+  const debouncedSearch = useCallback(
+    debounce((value: string) => {
+      setDebouncedSearchTerm(value);
+    }, 300),
+    []
+  );
+
+  useEffect(() => {
+    debouncedSearch(searchTerm);
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [searchTerm, debouncedSearch]);
   
   // -- PHARMACY MANAGEMENT STATE --
   const [mgmtTab, setMgmtTab] = useState<'dashboard' | 'prescriptions' | 'inventory' | 'pos' | 'branches' | 'purchases' | 'sales' | 'reports' | 'batch-expiry' | 'unit-converter' | 'suppliers' | 'invoices' | 'stock-alerts' | 'orders'>('dashboard');
@@ -196,8 +215,8 @@ export const Pharmacy: React.FC = () => {
                   } catch (e) {
                       console.error('Failed to load medicines with pharmacy info:', e);
                       // Fallback to simple medicines
-                      const meds = await db.getMedicines();
-                      setMedicines(meds);
+                  const meds = await db.getMedicines();
+                  setMedicines(meds);
                   }
               }
           } catch (e) {
@@ -349,7 +368,7 @@ export const Pharmacy: React.FC = () => {
           <>
               {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
               <PullToRefresh onRefresh={handlePharmacyRefresh} disabled={loadingOrders}>
-              <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-6 animate-in fade-in duration-500">
+          <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-6 animate-in fade-in duration-500">
               
               {/* Sidebar */}
               <div className="w-full md:w-64 bg-white dark:bg-[#0F172A] rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 p-4">
@@ -863,6 +882,7 @@ export const Pharmacy: React.FC = () => {
 
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
+    
     try {
       const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
@@ -873,6 +893,7 @@ export const Pharmacy: React.FC = () => {
       const pharmacyBranch = firstItem?.pharmacyBranch || '';
       const pharmacyLocation = firstItem?.pharmacyLocation || '';
       
+      // Prepare order data
       const orderData = {
         patient_id: user.id,
         patient_name: user.name,
@@ -881,30 +902,44 @@ export const Pharmacy: React.FC = () => {
         pharmacy_branch: pharmacyBranch,
         pharmacy_location: pharmacyLocation,
         items: cart.map(item => ({
+          inventory_id: item.id, // Use inventory_id for transaction
           medicine_id: item.id,
           name: item.name,
           quantity: item.quantity,
           price: item.price
         })),
+        total: total,
         total_amount: total,
+        location: user.location || 'Not specified',
+        delivery_address: user.location || 'Not specified',
+        payment_method: 'mpesa', // Default payment method
         status: 'PENDING',
         payment_status: 'PENDING',
         delivery_status: 'PENDING',
-        delivery_address: user.location || 'Not specified',
         createdAt: serverTimestamp()
       };
-      await db.createOrder(orderData);
+      
+      // Validate order data
+      const validation = validateAndSanitize(orderSchema, orderData);
+      if (!validation.success) {
+        const errorMessage = formatValidationError(validation.errors!);
+        notify(errorMessage, 'error');
+        logger.warn('Order validation failed', { orderData, errors: validation.errors });
+        return;
+      }
+      
+      // Create order with validated data
+      await db.createOrder(validation.data!);
       setCart([]);
       setShowCart(false);
       setShowCheckout(false);
       notify('Order placed successfully! You will receive a confirmation soon.', 'success');
-    } catch (error) {
-      console.error('Checkout error:', error);
-      notify('Failed to place order. Please try again.', 'error');
+      logger.info('Order created successfully', { orderId: validation.data, userId: user.id });
+    } catch (error: any) {
+      handleError(error, notify, { userId: user.id, cartItems: cart.length });
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const categories = ['All', ...new Set(medicines.map(m => m.category))];
   
   // Calculate price range from medicines
@@ -912,35 +947,46 @@ export const Pharmacy: React.FC = () => {
   const minPrice = medicines.length > 0 ? Math.min(...medicines.map(m => m.price || 0)) : 0;
   
   // Enhanced filtering with price range
-  let filteredMedicines = medicines.filter(med => {
-    const matchesSearch = !searchTerm || 
-      med.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      med.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (med.description && med.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (med.pharmacyName && med.pharmacyName.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'All' || med.category === selectedCategory;
-    const matchesPrice = (med.price || 0) >= priceRange[0] && (med.price || 0) <= priceRange[1];
-    return matchesSearch && matchesCategory && matchesPrice;
-  });
+  // Memoize filtered medicines with debounced search
+  const filteredMedicines = useMemo(() => {
+    let filtered = medicines.filter(med => {
+      const matchesSearch = !debouncedSearchTerm || 
+        med.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || 
+        med.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (med.description && med.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (med.pharmacyName && med.pharmacyName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
+      const matchesCategory = selectedCategory === 'All' || med.category === selectedCategory;
+      const matchesPrice = (med.price || 0) >= priceRange[0] && (med.price || 0) <= priceRange[1];
+      return matchesSearch && matchesCategory && matchesPrice;
+    });
+    
+    // Sorting
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'price-low':
+          return (a.price || 0) - (b.price || 0);
+        case 'price-high':
+          return (b.price || 0) - (a.price || 0);
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'popular':
+          // Sort by stock availability (in stock first)
+          if (a.inStock && !b.inStock) return -1;
+          if (!a.inStock && b.inStock) return 1;
+          return 0;
+        default:
+          return 0;
+      }
+    });
+  }, [medicines, debouncedSearchTerm, selectedCategory, priceRange, sortBy]);
   
-  // Sorting
-  filteredMedicines = [...filteredMedicines].sort((a, b) => {
-    switch (sortBy) {
-      case 'price-low':
-        return (a.price || 0) - (b.price || 0);
-      case 'price-high':
-        return (b.price || 0) - (a.price || 0);
-      case 'name':
-        return a.name.localeCompare(b.name);
-      case 'popular':
-        // Sort by stock availability (in stock first)
-        if (a.inStock && !b.inStock) return -1;
-        if (!a.inStock && b.inStock) return 1;
-        return 0;
-      default:
-        return 0;
-    }
-  });
+  // Memoize cart total
+  const cartTotal = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      const medicine = medicines.find(m => m.id === item.id);
+      return sum + (medicine?.price || 0) * item.quantity;
+    }, 0);
+  }, [cart, medicines]);
 
   // Patient View - Redesigned with Conversion Focus
   return (
@@ -952,7 +998,7 @@ export const Pharmacy: React.FC = () => {
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="text-yellow-300" size={24} />
             <span className="text-yellow-200 font-bold text-sm uppercase tracking-wider">Trusted by 10,000+ Patients</span>
-          </div>
+                    </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
             Your Health, Delivered to Your Door
           </h1>
@@ -993,7 +1039,10 @@ export const Pharmacy: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white"
+                aria-label="Search for medicines"
+                aria-describedby="pharmacy-search-description"
               />
+              <span id="pharmacy-search-description" className="sr-only">Search for medicines by name, category, description, or pharmacy name</span>
             </div>
             <div className="relative">
               <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -1031,7 +1080,7 @@ export const Pharmacy: React.FC = () => {
                   {cart.length}
                 </span>
               )}
-            </button>
+                        </button>
           </div>
           
           {/* Price Range Filter */}
@@ -1124,6 +1173,10 @@ export const Pharmacy: React.FC = () => {
               <div 
                 key={med.id} 
                 className="bg-white dark:bg-[#0F172A] rounded-3xl p-6 border border-gray-100 dark:border-gray-700/50 hover:shadow-xl transition-all hover:-translate-y-1 group flex flex-col"
+                role="listitem"
+                aria-posinset={index + 1}
+                aria-setsize={filteredMedicines.length}
+                id={`medicine-${med.id}-description`}
               >
                 {/* Product Image */}
                 <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 group-hover:shadow-lg transition-shadow">
@@ -1214,15 +1267,17 @@ export const Pharmacy: React.FC = () => {
                     <button
                       onClick={() => handleAddToCart(med)}
                       disabled={!med.inStock}
+                      aria-label={`Add ${med.name} to cart`}
+                      aria-describedby={`medicine-${med.id}-description`}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-xl hover:scale-105 active:scale-95"
                     >
                       <Plus size={20} />
                     </button>
                   </div>
+                    </div>
                 </div>
-              </div>
             ))}
-          </div>
+        </div>
         )}
       </div>
 
@@ -1341,4 +1396,6 @@ export const Pharmacy: React.FC = () => {
       )}
     </div>
   );
-};
+});
+
+Pharmacy.displayName = 'Pharmacy';

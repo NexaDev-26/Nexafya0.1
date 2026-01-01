@@ -1,48 +1,50 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
-import { CHWDashboard } from './components/CHWDashboard';
-import { CourierDashboard } from './components/CourierDashboard';
-import { AdminAnalytics } from './components/AdminAnalytics';
+import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
 // Import addSampleDoctors utility to make it available globally
 import './utils/addSampleDoctors';
-import { UserManagement } from './components/UserManagement';
-import { SymptomChecker } from './components/SymptomChecker';
-import { Consultations } from './components/Consultations';
-import { Pharmacy } from './components/Pharmacy';
-import { PharmacyPOS } from './components/PharmacyPOS';
-import { PurchaseManagement } from './components/PurchaseManagement';
-import { ReportsDashboard } from './components/ReportsDashboard';
-import { BatchExpiryTracker } from './components/BatchExpiryTracker';
-import { UnitConverter } from './components/UnitConverter';
-import { SupplierManagement } from './components/SupplierManagement';
-import { InvoiceGenerator } from './components/InvoiceGenerator';
-import { StockAlerts } from './components/StockAlerts';
-import { MedicationReminderEnhanced } from './components/MedicationReminderEnhanced';
-import { HealthAnalytics } from './components/HealthAnalytics';
-import { PaymentIntegration } from './components/PaymentIntegration';
-import { EPrescription } from './components/EPrescription';
-import { FamilyHealthDashboard } from './components/FamilyHealthDashboard';
-import { HealthGoals } from './components/HealthGoals';
-import { NotificationPreferences } from './components/NotificationPreferences';
-import { Profile } from './components/Profile';
-import { Login } from './components/Login';
-import { Patients } from './components/Patients';
-import { Orders } from './components/Orders';
-import { Articles } from './components/Articles';
-import { Couriers } from './components/Couriers';
-import { VideoCall } from './components/VideoCall';
-import { HealthRecords } from './components/HealthRecords';
-import { CareCenter } from './components/CareCenter';
-import { HealthResources } from './components/HealthResources';
-import { Insurance } from './components/Insurance';
-import { Messages } from './components/Messages';
-import { LandingPage } from './components/LandingPage';
-import { ConversationalSymptomChecker } from './components/ConversationalSymptomChecker';
-import { EnhancedCalendar } from './components/EnhancedCalendar';
-import { AuthorProfile } from './components/AuthorProfile';
+
+// Lazy load heavy components for code splitting
+const CHWDashboard = lazy(() => import('./components/CHWDashboard').then(m => ({ default: m.CHWDashboard })));
+const CourierDashboard = lazy(() => import('./components/CourierDashboard').then(m => ({ default: m.CourierDashboard })));
+const AdminAnalytics = lazy(() => import('./components/AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
+const UserManagement = lazy(() => import('./components/UserManagement').then(m => ({ default: m.UserManagement })));
+const SymptomChecker = lazy(() => import('./components/SymptomChecker').then(m => ({ default: m.SymptomChecker })));
+const Consultations = lazy(() => import('./components/Consultations').then(m => ({ default: m.Consultations })));
+const Pharmacy = lazy(() => import('./components/Pharmacy').then(m => ({ default: m.Pharmacy })));
+const PharmacyPOS = lazy(() => import('./components/PharmacyPOS').then(m => ({ default: m.PharmacyPOS })));
+const PurchaseManagement = lazy(() => import('./components/PurchaseManagement').then(m => ({ default: m.PurchaseManagement })));
+const ReportsDashboard = lazy(() => import('./components/ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
+const BatchExpiryTracker = lazy(() => import('./components/BatchExpiryTracker').then(m => ({ default: m.BatchExpiryTracker })));
+const UnitConverter = lazy(() => import('./components/UnitConverter').then(m => ({ default: m.UnitConverter })));
+const SupplierManagement = lazy(() => import('./components/SupplierManagement').then(m => ({ default: m.SupplierManagement })));
+const InvoiceGenerator = lazy(() => import('./components/InvoiceGenerator').then(m => ({ default: m.InvoiceGenerator })));
+const StockAlerts = lazy(() => import('./components/StockAlerts').then(m => ({ default: m.StockAlerts })));
+const MedicationReminderEnhanced = lazy(() => import('./components/MedicationReminderEnhanced').then(m => ({ default: m.MedicationReminderEnhanced })));
+const HealthAnalytics = lazy(() => import('./components/HealthAnalytics').then(m => ({ default: m.HealthAnalytics })));
+const PaymentIntegration = lazy(() => import('./components/PaymentIntegration').then(m => ({ default: m.PaymentIntegration })));
+const EPrescription = lazy(() => import('./components/EPrescription').then(m => ({ default: m.EPrescription })));
+const FamilyHealthDashboard = lazy(() => import('./components/FamilyHealthDashboard').then(m => ({ default: m.FamilyHealthDashboard })));
+const HealthGoals = lazy(() => import('./components/HealthGoals').then(m => ({ default: m.HealthGoals })));
+const NotificationPreferences = lazy(() => import('./components/NotificationPreferences').then(m => ({ default: m.NotificationPreferences })));
+const Profile = lazy(() => import('./components/Profile').then(m => ({ default: m.Profile })));
+const Patients = lazy(() => import('./components/Patients').then(m => ({ default: m.Patients })));
+const Orders = lazy(() => import('./components/Orders').then(m => ({ default: m.Orders })));
+const Articles = lazy(() => import('./components/Articles').then(m => ({ default: m.Articles })));
+const Couriers = lazy(() => import('./components/Couriers').then(m => ({ default: m.Couriers })));
+const VideoCall = lazy(() => import('./components/VideoCall').then(m => ({ default: m.VideoCall })));
+const HealthRecords = lazy(() => import('./components/HealthRecords').then(m => ({ default: m.HealthRecords })));
+const CareCenter = lazy(() => import('./components/CareCenter').then(m => ({ default: m.CareCenter })));
+const HealthResources = lazy(() => import('./components/HealthResources').then(m => ({ default: m.HealthResources })));
+const Insurance = lazy(() => import('./components/Insurance').then(m => ({ default: m.Insurance })));
+const Messages = lazy(() => import('./components/Messages').then(m => ({ default: m.Messages })));
+const ConversationalSymptomChecker = lazy(() => import('./components/ConversationalSymptomChecker').then(m => ({ default: m.ConversationalSymptomChecker })));
+const EnhancedCalendar = lazy(() => import('./components/EnhancedCalendar').then(m => ({ default: m.EnhancedCalendar })));
+const AuthorProfile = lazy(() => import('./components/AuthorProfile').then(m => ({ default: m.AuthorProfile })));
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PreferencesProvider } from './contexts/PreferencesContext';
@@ -277,12 +279,31 @@ const MainApp: React.FC = () => {
       );
   }
 
+  // Loading fallback component
+  const LoadingFallback = () => (
+    <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-100 dark:border-blue-900 rounded-full"></div>
+          <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+        </div>
+        <p className="text-gray-500 font-bold text-sm tracking-widest uppercase animate-pulse">Loading...</p>
+      </div>
+    </div>
+  );
+
   const renderAuthenticatedView = () => {
     switch (currentView) {
       case 'dashboard':
-        if (user.role === UserRole.CHW) return <CHWDashboard user={user} />;
-        if (user.role === UserRole.ADMIN) return <AdminAnalytics />;
-        if (user.role === UserRole.COURIER) return <CourierDashboard user={user} />;
+        if (user.role === UserRole.CHW) {
+          return <Suspense fallback={<LoadingFallback />}><CHWDashboard user={user} /></Suspense>;
+        }
+        if (user.role === UserRole.ADMIN) {
+          return <Suspense fallback={<LoadingFallback />}><AdminAnalytics /></Suspense>;
+        }
+        if (user.role === UserRole.COURIER) {
+          return <Suspense fallback={<LoadingFallback />}><CourierDashboard user={user} /></Suspense>;
+        }
         return <Dashboard 
                   role={user.role} 
                   userName={user.name} 
@@ -293,11 +314,11 @@ const MainApp: React.FC = () => {
                />;
       
       case 'care-center':
-        return <CareCenter initialTab="ai" onBookAppointment={handleBookAppointment} user={user} />;
+        return <Suspense fallback={<LoadingFallback />}><CareCenter initialTab="ai" onBookAppointment={handleBookAppointment} user={user} /></Suspense>;
       case 'care-center-labs':
-        return <CareCenter initialTab="labs" onBookAppointment={handleBookAppointment} user={user} />;
+        return <Suspense fallback={<LoadingFallback />}><CareCenter initialTab="labs" onBookAppointment={handleBookAppointment} user={user} /></Suspense>;
       case 'resources':
-        return <HealthResources 
+        return <Suspense fallback={<LoadingFallback />}><HealthResources 
                   user={user} 
                   articles={articles} 
                   setArticles={setArticles} 
@@ -306,19 +327,19 @@ const MainApp: React.FC = () => {
                   onViewAuthor={handleViewAuthor}
                   healthRecords={healthRecords}
                   onAddHealthRecord={handleAddHealthRecord}
-               />;
+               /></Suspense>;
       case 'insurance':
-        return <Insurance />;
+        return <Suspense fallback={<LoadingFallback />}><Insurance /></Suspense>;
       case 'messages':
-        return <Messages user={user} onNavigate={handleNavigate} />;
+        return <Suspense fallback={<LoadingFallback />}><Messages user={user} onNavigate={handleNavigate} /></Suspense>;
       case 'symptom-checker':
-        return <SymptomChecker />;
+        return <Suspense fallback={<LoadingFallback />}><SymptomChecker /></Suspense>;
       case 'symptom-checker-conversational':
-        return <ConversationalSymptomChecker />;
+        return <Suspense fallback={<LoadingFallback />}><ConversationalSymptomChecker /></Suspense>;
       case 'calendar':
-        return <EnhancedCalendar />;
+        return <Suspense fallback={<LoadingFallback />}><EnhancedCalendar /></Suspense>;
       case 'consultations':
-        return <Consultations 
+        return <Suspense fallback={<LoadingFallback />}><Consultations 
                   role={user.role}
                   initialDoctorId={targetDoctorId} 
                   onBookAppointment={handleBookAppointment}
@@ -327,56 +348,56 @@ const MainApp: React.FC = () => {
                   appointments={appointments}
                   userName={user.name}
                   onNavigate={handleNavigate}
-               />;
+               /></Suspense>;
       case 'patients':
-        return <Patients onNavigate={handleNavigate} />;
+        return <Suspense fallback={<LoadingFallback />}><Patients onNavigate={handleNavigate} /></Suspense>;
       case 'orders':
-        return <Orders user={user} onNavigate={handleNavigate} />;
+        return <Suspense fallback={<LoadingFallback />}><Orders user={user} onNavigate={handleNavigate} /></Suspense>;
       case 'inventory':
-        return <Pharmacy />; 
+        return <Suspense fallback={<LoadingFallback />}><Pharmacy /></Suspense>; 
       case 'couriers':
-        return <Couriers onNavigate={handleNavigate} />;
+        return <Suspense fallback={<LoadingFallback />}><Couriers onNavigate={handleNavigate} /></Suspense>;
       case 'driver-profile':
         return <DriverProfile user={user} onBack={() => handleNavigate('couriers')} />;
       case 'users':
-        return <UserManagement />;
+        return <Suspense fallback={<LoadingFallback />}><UserManagement /></Suspense>;
       case 'reports':
-        return <ReportsDashboard />;
+        return <Suspense fallback={<LoadingFallback />}><ReportsDashboard /></Suspense>;
       case 'purchases':
-        return <PurchaseManagement />;
+        return <Suspense fallback={<LoadingFallback />}><PurchaseManagement /></Suspense>;
       case 'batch-expiry':
-        return <BatchExpiryTracker />;
+        return <Suspense fallback={<LoadingFallback />}><BatchExpiryTracker /></Suspense>;
       case 'unit-converter':
-        return <UnitConverter />;
+        return <Suspense fallback={<LoadingFallback />}><UnitConverter /></Suspense>;
       case 'suppliers':
-        return <SupplierManagement />;
+        return <Suspense fallback={<LoadingFallback />}><SupplierManagement /></Suspense>;
       case 'invoices':
-        return <InvoiceGenerator />;
+        return <Suspense fallback={<LoadingFallback />}><InvoiceGenerator /></Suspense>;
       case 'stock-alerts':
-        return <StockAlerts />;
+        return <Suspense fallback={<LoadingFallback />}><StockAlerts /></Suspense>;
       case 'medication-reminders':
-        return <MedicationReminderEnhanced />;
+        return <Suspense fallback={<LoadingFallback />}><MedicationReminderEnhanced /></Suspense>;
       case 'health-analytics':
-        return <HealthAnalytics />;
+        return <Suspense fallback={<LoadingFallback />}><HealthAnalytics /></Suspense>;
       case 'payments':
-        return <PaymentIntegration />;
+        return <Suspense fallback={<LoadingFallback />}><PaymentIntegration /></Suspense>;
       case 'e-prescriptions':
-        return <EPrescription />;
+        return <Suspense fallback={<LoadingFallback />}><EPrescription /></Suspense>;
       case 'family-health':
-        return <FamilyHealthDashboard />;
+        return <Suspense fallback={<LoadingFallback />}><FamilyHealthDashboard /></Suspense>;
       case 'health-goals':
-        return <HealthGoals />;
+        return <Suspense fallback={<LoadingFallback />}><HealthGoals /></Suspense>;
       case 'notification-preferences':
-        return <NotificationPreferences />;
+        return <Suspense fallback={<LoadingFallback />}><NotificationPreferences /></Suspense>;
       case 'map':
-        return <CourierDashboard user={user} initialTab="map" />;
+        return <Suspense fallback={<LoadingFallback />}><CourierDashboard user={user} initialTab="map" /></Suspense>;
       case 'earnings':
-        return <CourierDashboard user={user} initialTab="earnings" />;
+        return <Suspense fallback={<LoadingFallback />}><CourierDashboard user={user} initialTab="earnings" /></Suspense>;
       case 'records':
-        return <HealthRecords records={healthRecords} onAddRecord={handleAddHealthRecord} />;
+        return <Suspense fallback={<LoadingFallback />}><HealthRecords records={healthRecords} onAddRecord={handleAddHealthRecord} /></Suspense>;
       case 'articles': 
       case 'manage-articles':
-        return <Articles 
+        return <Suspense fallback={<LoadingFallback />}><Articles 
                   user={user} 
                   articles={articles} 
                   setArticles={setArticles} 
@@ -386,33 +407,35 @@ const MainApp: React.FC = () => {
                   onViewAuthor={handleViewAuthor}
                   initialArticleId={targetArticleId}
                   initialTab={articleInitialTab}
-               />;
+               /></Suspense>;
       case 'author-profile':
         return targetAuthorId ? (
-          <AuthorProfile
-            authorId={targetAuthorId}
-            user={user}
-            articles={articles}
-            onBack={() => {
-              // For couriers, go back to articles, for others go to resources
-              if (user.role === UserRole.COURIER) {
-                handleNavigate('articles');
-              } else {
-                handleNavigate('resources');
-              }
-            }}
-            onNavigate={handleNavigate}
-            onBookAppointment={handleBookAppointmentByDoctorId}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <AuthorProfile
+              authorId={targetAuthorId}
+              user={user}
+              articles={articles}
+              onBack={() => {
+                // For couriers, go back to articles, for others go to resources
+                if (user.role === UserRole.COURIER) {
+                  handleNavigate('articles');
+                } else {
+                  handleNavigate('resources');
+                }
+              }}
+              onNavigate={handleNavigate}
+              onBookAppointment={handleBookAppointmentByDoctorId}
+            />
+          </Suspense>
         ) : null;
       case 'video-call':
-        return <VideoCall onEnd={() => handleNavigate('dashboard')} />;
+        return <Suspense fallback={<LoadingFallback />}><VideoCall onEnd={() => handleNavigate('dashboard')} /></Suspense>;
       case 'pharmacy':
-        return <Pharmacy />;
+        return <Suspense fallback={<LoadingFallback />}><Pharmacy /></Suspense>;
       case 'finance':
       case 'profile':
       case 'settings':
-        return <Profile 
+        return <Suspense fallback={<LoadingFallback />}><Profile 
                   user={user} 
                   onLogout={signOut} 
                   articles={articles} 
@@ -423,7 +446,7 @@ const MainApp: React.FC = () => {
                   onRemoveFamilyMember={handleRemoveFamilyMember}
                   onUpdateUser={handleUpdateUser}
                   initialTab={currentView === 'finance' ? 'finance' : currentView === 'settings' ? 'settings' : 'overview'} 
-               />;
+               /></Suspense>;
       default:
         return <Dashboard role={user.role} userName={user.name} onNavigate={handleNavigate} appointments={appointments} />;
     }

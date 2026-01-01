@@ -4,6 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NexaFya - Affordable Healthcare for Everyone</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="NexaFya - Your trusted healthcare platform in Tanzania. Connect with verified doctors, order medicines online, manage health records, and access quality healthcare services.">
+    <meta name="keywords" content="healthcare, telemedicine, Tanzania, doctors, pharmacy, medicine delivery, health records, appointments, NexaFya">
+    <meta name="author" content="NexaFya">
+    <meta name="robots" content="index, follow">
+    <meta name="language" content="English">
+    <meta name="revisit-after" content="7 days">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nexafya.com/">
+    <meta property="og:title" content="NexaFya - Affordable Healthcare for Everyone">
+    <meta property="og:description" content="Your trusted healthcare platform in Tanzania. Connect with verified doctors, order medicines online, and access quality healthcare services.">
+    <meta property="og:image" content="https://nexafya.com/og-image.jpg">
+    <meta property="og:site_name" content="NexaFya">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://nexafya.com/">
+    <meta name="twitter:title" content="NexaFya - Affordable Healthcare for Everyone">
+    <meta name="twitter:description" content="Your trusted healthcare platform in Tanzania. Connect with verified doctors, order medicines online, and access quality healthcare services.">
+    <meta name="twitter:image" content="https://nexafya.com/twitter-image.jpg">
+    
+    <!-- Mobile -->
+    <meta name="theme-color" content="#0EA5E9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NexaFya">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered:', registration);
+            })
+            .catch((error) => {
+              console.log('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">

@@ -11,11 +11,15 @@ import {
   where, 
   orderBy, 
   limit,
+  startAfter,
   serverTimestamp,
   Timestamp,
   onSnapshot,
   QueryConstraint,
-  increment
+  increment,
+  runTransaction,
+  writeBatch,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { 
@@ -856,25 +860,67 @@ export const firebaseDb = {
     }
   },
 
-  getOrders: async (userId: string, role: UserRole) => {
+  getOrders: async (
+    userId: string, 
+    role: UserRole,
+    options?: { limit?: number; lastDoc?: QueryDocumentSnapshot }
+  ) => {
     try {
       const ordersRef = firestoreCollection(firestore, 'orders');
       const field = role === UserRole.PHARMACY ? 'pharmacy_id' : 'patient_id';
+      const pageLimit = options?.limit || 20;
+      
       // Try both createdAt and created_at for backward compatibility
       let q;
       try {
-        q = query(ordersRef, where(field, '==', userId), orderBy('createdAt', 'desc'));
+        q = query(
+          ordersRef, 
+          where(field, '==', userId), 
+          orderBy('createdAt', 'desc'),
+          limit(pageLimit)
+        );
+        if (options?.lastDoc) {
+          q = query(q, startAfter(options.lastDoc));
+        }
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const orders = querySnapshot.docs.map((doc) => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().created_at?.toDate?.() || new Date()
+        }));
+        
+        return {
+          data: orders,
+          lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1] || null,
+          hasMore: querySnapshot.docs.length === pageLimit
+        };
       } catch (e) {
         // Fallback to created_at if createdAt doesn't exist
-        q = query(ordersRef, where(field, '==', userId), orderBy('created_at', 'desc'));
+        q = query(
+          ordersRef, 
+          where(field, '==', userId), 
+          orderBy('created_at', 'desc'),
+          limit(pageLimit)
+        );
+        if (options?.lastDoc) {
+          q = query(q, startAfter(options.lastDoc));
+        }
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const orders = querySnapshot.docs.map((doc) => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().created_at?.toDate?.() || new Date()
+        }));
+        
+        return {
+          data: orders,
+          lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1] || null,
+          hasMore: querySnapshot.docs.length === pageLimit
+        };
       }
     } catch (e) {
       console.error("Fetch orders error", e);
-      return [];
+      return { data: [], lastDoc: null, hasMore: false };
     }
   },
 
@@ -1895,12 +1941,52 @@ export const firebaseDb = {
   // --- ORDERS ---
   createOrder: async (order: any): Promise<string> => {
     try {
-      const ordersRef = firestoreCollection(firestore, 'orders');
-      const docRef = await addDoc(ordersRef, cleanFirestoreData({
-        ...order,
-        createdAt: serverTimestamp()
-      }));
-      return docRef.id;
+      // Use transaction to ensure atomicity
+      return await runTransaction(firestore, async (transaction) => {
+        // 1. Create order document
+        const ordersRef = firestoreCollection(firestore, 'orders');
+        const orderRef = doc(ordersRef);
+        
+        transaction.set(orderRef, cleanFirestoreData({
+          ...order,
+          createdAt: serverTimestamp(),
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          status: order.status || 'PENDING',
+        }));
+        
+        // 2. Update inventory for each item (atomic)
+        if (order.items && Array.isArray(order.items)) {
+          for (const item of order.items) {
+            if (item.inventory_id) {
+              const inventoryRef = doc(
+                firestoreCollection(firestore, 'inventory'),
+                item.inventory_id
+              );
+              const inventorySnap = await transaction.get(inventoryRef);
+              
+              if (!inventorySnap.exists()) {
+                throw new Error(`Inventory item ${item.inventory_id} not found`);
+              }
+              
+              const currentStock = inventorySnap.data().stock || 0;
+              const newStock = currentStock - (item.quantity || 0);
+              
+              if (newStock < 0) {
+                throw new Error(`Insufficient stock for ${item.name || item.inventory_id}`);
+              }
+              
+              transaction.update(inventoryRef, {
+                stock: newStock,
+                updated_at: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            }
+          }
+        }
+        
+        return orderRef.id;
+      });
     } catch (e) {
       console.error("DB: Failed to create order", e);
       throw e;
