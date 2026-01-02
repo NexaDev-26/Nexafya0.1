@@ -8,8 +8,7 @@ import { MOCK_CHALLENGES, MOCK_HEALTH_PLANS, MOCK_MEDICINES } from '../constants
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../contexts/DarkModeContext';
-// Firebase Firestore imports - must be imported explicitly for production builds
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+// Firebase Firestore - use dynamic imports for production builds
 import { db as firestore } from '../lib/firebase';
 import { VitalsScanner } from './VitalsScanner';
 import { SkeletonLoader } from './SkeletonLoader';
@@ -99,25 +98,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       
       const setupOrdersListener = async () => {
         try {
-          // Ensure Firebase functions are available - use dynamic import as fallback
-          let collectionFn = collection;
-          let queryFn = query;
-          let whereFn = where;
-          let onSnapshotFn = onSnapshot;
+          // Always use dynamic import to ensure functions are available in production
+          const { collection, query, where, onSnapshot } = await import('firebase/firestore');
           
-          if (typeof collection === 'undefined' || typeof query === 'undefined' || typeof where === 'undefined' || typeof onSnapshot === 'undefined') {
-            // Fallback to dynamic import if static imports failed (production build issue)
-            const firestoreModule = await import('firebase/firestore');
-            collectionFn = firestoreModule.collection;
-            queryFn = firestoreModule.query;
-            whereFn = firestoreModule.where;
-            onSnapshotFn = firestoreModule.onSnapshot;
-          }
-          
-          const ordersRef = collectionFn(firestore, 'orders');
-          const q = queryFn(ordersRef, whereFn('patient_id', '==', user.id));
+          const ordersRef = collection(firestore, 'orders');
+          const q = query(ordersRef, where('patient_id', '==', user.id));
       
-          unsubscribe = onSnapshotFn(q,
+          unsubscribe = onSnapshot(q,
             (snapshot) => {
               try {
                 const ordersData = snapshot.docs.map((doc) => {

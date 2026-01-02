@@ -89,18 +89,34 @@ import { OnboardingTour } from './components/OnboardingTour';
 import { handleError } from './utils/errorHandler';
 // Ensure Firebase is initialized first before any components load
 import { db as firestore, auth } from './lib/firebase';
-// Pre-import Firebase Firestore functions to ensure they're available
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
-// Store references globally to ensure they're available
+// Store Firebase references globally - use async getters to avoid production build issues
 if (typeof window !== 'undefined') {
+  // Store as async functions to ensure they work in production builds
   (window as any).__firebaseFunctions = {
-    collection,
-    query,
-    where,
-    onSnapshot,
+    async getCollection() {
+      const { collection } = await import('firebase/firestore');
+      return collection;
+    },
+    async getQuery() {
+      const { query } = await import('firebase/firestore');
+      return query;
+    },
+    async getWhere() {
+      const { where } = await import('firebase/firestore');
+      return where;
+    },
+    async getOnSnapshot() {
+      const { onSnapshot } = await import('firebase/firestore');
+      return onSnapshot;
+    },
     firestore,
-    auth
+    auth,
+    // Helper to get all functions at once
+    async getFunctions() {
+      const { collection, query, where, onSnapshot } = await import('firebase/firestore');
+      return { collection, query, where, onSnapshot, firestore, auth };
+    }
   };
 }
 

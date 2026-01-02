@@ -150,25 +150,37 @@ const registerGlobally = () => {
   if (typeof window !== 'undefined') {
     try {
       (window as any).addSampleDoctors = addSampleDoctors;
+      // Only log in development to avoid console noise in production
       if (import.meta.env.DEV) {
         console.log('💡 Tip: Run addSampleDoctors() in the console to add sample doctors');
       }
     } catch (error) {
-      console.warn('Failed to register addSampleDoctors globally:', error);
+      // Silently fail in production
+      if (import.meta.env.DEV) {
+        console.warn('Failed to register addSampleDoctors globally:', error);
+      }
     }
   }
 };
 
 // Register immediately if window is available, otherwise wait for DOM
-if (typeof window !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', registerGlobally);
-  } else {
-    // Use requestIdleCallback if available, otherwise setTimeout
-    if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(registerGlobally);
+// Use a safer approach that doesn't cause errors if DOM isn't ready
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', registerGlobally);
     } else {
-      setTimeout(registerGlobally, 100);
+      // Use requestIdleCallback if available, otherwise setTimeout
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(registerGlobally);
+      } else {
+        setTimeout(registerGlobally, 100);
+      }
+    }
+  } catch (error) {
+    // Silently fail if registration fails
+    if (import.meta.env.DEV) {
+      console.warn('Failed to set up addSampleDoctors registration:', error);
     }
   }
 }
