@@ -8,43 +8,71 @@ import { LandingPage } from './components/LandingPage';
 // Lazy load addSampleDoctors to avoid side-effect issues in production
 // The function will be registered globally when first imported by a component
 
-// Lazy load heavy components for code splitting
-const CHWDashboard = lazy(() => import('./components/CHWDashboard').then(m => ({ default: m.CHWDashboard })));
-const CourierDashboard = lazy(() => import('./components/CourierDashboard').then(m => ({ default: m.CourierDashboard })));
-const AdminAnalytics = lazy(() => import('./components/AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
-const UserManagement = lazy(() => import('./components/UserManagement').then(m => ({ default: m.UserManagement })));
-const SymptomChecker = lazy(() => import('./components/SymptomChecker').then(m => ({ default: m.SymptomChecker })));
-const Consultations = lazy(() => import('./components/Consultations').then(m => ({ default: m.Consultations })));
-const Pharmacy = lazy(() => import('./components/Pharmacy').then(m => ({ default: m.Pharmacy })));
-const PharmacyPOS = lazy(() => import('./components/PharmacyPOS').then(m => ({ default: m.PharmacyPOS })));
-const PurchaseManagement = lazy(() => import('./components/PurchaseManagement').then(m => ({ default: m.PurchaseManagement })));
-const ReportsDashboard = lazy(() => import('./components/ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
-const BatchExpiryTracker = lazy(() => import('./components/BatchExpiryTracker').then(m => ({ default: m.BatchExpiryTracker })));
-const UnitConverter = lazy(() => import('./components/UnitConverter').then(m => ({ default: m.UnitConverter })));
-const SupplierManagement = lazy(() => import('./components/SupplierManagement').then(m => ({ default: m.SupplierManagement })));
-const InvoiceGenerator = lazy(() => import('./components/InvoiceGenerator').then(m => ({ default: m.InvoiceGenerator })));
-const StockAlerts = lazy(() => import('./components/StockAlerts').then(m => ({ default: m.StockAlerts })));
-const MedicationReminderEnhanced = lazy(() => import('./components/MedicationReminderEnhanced').then(m => ({ default: m.MedicationReminderEnhanced })));
-const HealthAnalytics = lazy(() => import('./components/HealthAnalytics').then(m => ({ default: m.HealthAnalytics })));
-const PaymentIntegration = lazy(() => import('./components/PaymentIntegration').then(m => ({ default: m.PaymentIntegration })));
-const EPrescription = lazy(() => import('./components/EPrescription').then(m => ({ default: m.EPrescription })));
-const FamilyHealthDashboard = lazy(() => import('./components/FamilyHealthDashboard').then(m => ({ default: m.FamilyHealthDashboard })));
-const HealthGoals = lazy(() => import('./components/HealthGoals').then(m => ({ default: m.HealthGoals })));
-const NotificationPreferences = lazy(() => import('./components/NotificationPreferences').then(m => ({ default: m.NotificationPreferences })));
-const Profile = lazy(() => import('./components/Profile').then(m => ({ default: m.Profile })));
-const Patients = lazy(() => import('./components/Patients').then(m => ({ default: m.Patients })));
-const Orders = lazy(() => import('./components/Orders').then(m => ({ default: m.Orders })));
-const Articles = lazy(() => import('./components/Articles').then(m => ({ default: m.Articles })));
-const Couriers = lazy(() => import('./components/Couriers').then(m => ({ default: m.Couriers })));
-const VideoCall = lazy(() => import('./components/VideoCall').then(m => ({ default: m.VideoCall })));
-const HealthRecords = lazy(() => import('./components/HealthRecords').then(m => ({ default: m.HealthRecords })));
-const CareCenter = lazy(() => import('./components/CareCenter').then(m => ({ default: m.CareCenter })));
-const HealthResources = lazy(() => import('./components/HealthResources').then(m => ({ default: m.HealthResources })));
-const Insurance = lazy(() => import('./components/Insurance').then(m => ({ default: m.Insurance })));
-const Messages = lazy(() => import('./components/Messages').then(m => ({ default: m.Messages })));
-const ConversationalSymptomChecker = lazy(() => import('./components/ConversationalSymptomChecker').then(m => ({ default: m.ConversationalSymptomChecker })));
-const EnhancedCalendar = lazy(() => import('./components/EnhancedCalendar').then(m => ({ default: m.EnhancedCalendar })));
-const AuthorProfile = lazy(() => import('./components/AuthorProfile').then(m => ({ default: m.AuthorProfile })));
+// Helper function to create lazy-loaded components with error handling
+const createLazyComponent = (importFn: () => Promise<any>) => {
+  return lazy(() => 
+    importFn().catch((error) => {
+      console.error('Failed to load component:', error);
+      // Return a fallback component that shows an error
+      return {
+        default: () => (
+          <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+            <div className="max-w-md w-full bg-white dark:bg-white rounded-2xl shadow-xl p-8 text-center">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Component Load Error</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Failed to load this component. Please refresh the page.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </div>
+        )
+      };
+    })
+  );
+};
+
+// Lazy load heavy components for code splitting with error handling
+const CHWDashboard = createLazyComponent(() => import('./components/CHWDashboard').then(m => ({ default: m.CHWDashboard })));
+const CourierDashboard = createLazyComponent(() => import('./components/CourierDashboard').then(m => ({ default: m.CourierDashboard })));
+const AdminAnalytics = createLazyComponent(() => import('./components/AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
+const UserManagement = createLazyComponent(() => import('./components/UserManagement').then(m => ({ default: m.UserManagement })));
+const SymptomChecker = createLazyComponent(() => import('./components/SymptomChecker').then(m => ({ default: m.SymptomChecker })));
+const Consultations = createLazyComponent(() => import('./components/Consultations').then(m => ({ default: m.Consultations })));
+const Pharmacy = createLazyComponent(() => import('./components/Pharmacy').then(m => ({ default: m.Pharmacy })));
+const PharmacyPOS = createLazyComponent(() => import('./components/PharmacyPOS').then(m => ({ default: m.PharmacyPOS })));
+const PurchaseManagement = createLazyComponent(() => import('./components/PurchaseManagement').then(m => ({ default: m.PurchaseManagement })));
+const ReportsDashboard = createLazyComponent(() => import('./components/ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
+const BatchExpiryTracker = createLazyComponent(() => import('./components/BatchExpiryTracker').then(m => ({ default: m.BatchExpiryTracker })));
+const UnitConverter = createLazyComponent(() => import('./components/UnitConverter').then(m => ({ default: m.UnitConverter })));
+const SupplierManagement = createLazyComponent(() => import('./components/SupplierManagement').then(m => ({ default: m.SupplierManagement })));
+const InvoiceGenerator = createLazyComponent(() => import('./components/InvoiceGenerator').then(m => ({ default: m.InvoiceGenerator })));
+const StockAlerts = createLazyComponent(() => import('./components/StockAlerts').then(m => ({ default: m.StockAlerts })));
+const MedicationReminderEnhanced = createLazyComponent(() => import('./components/MedicationReminderEnhanced').then(m => ({ default: m.MedicationReminderEnhanced })));
+const HealthAnalytics = createLazyComponent(() => import('./components/HealthAnalytics').then(m => ({ default: m.HealthAnalytics })));
+const PaymentIntegration = createLazyComponent(() => import('./components/PaymentIntegration').then(m => ({ default: m.PaymentIntegration })));
+const EPrescription = createLazyComponent(() => import('./components/EPrescription').then(m => ({ default: m.EPrescription })));
+const FamilyHealthDashboard = createLazyComponent(() => import('./components/FamilyHealthDashboard').then(m => ({ default: m.FamilyHealthDashboard })));
+const HealthGoals = createLazyComponent(() => import('./components/HealthGoals').then(m => ({ default: m.HealthGoals })));
+const NotificationPreferences = createLazyComponent(() => import('./components/NotificationPreferences').then(m => ({ default: m.NotificationPreferences })));
+const Profile = createLazyComponent(() => import('./components/Profile').then(m => ({ default: m.Profile })));
+const Patients = createLazyComponent(() => import('./components/Patients').then(m => ({ default: m.Patients })));
+const Orders = createLazyComponent(() => import('./components/Orders').then(m => ({ default: m.Orders })));
+const Articles = createLazyComponent(() => import('./components/Articles').then(m => ({ default: m.Articles })));
+const Couriers = createLazyComponent(() => import('./components/Couriers').then(m => ({ default: m.Couriers })));
+const VideoCall = createLazyComponent(() => import('./components/VideoCall').then(m => ({ default: m.VideoCall })));
+const HealthRecords = createLazyComponent(() => import('./components/HealthRecords').then(m => ({ default: m.HealthRecords })));
+const CareCenter = createLazyComponent(() => import('./components/CareCenter').then(m => ({ default: m.CareCenter })));
+const HealthResources = createLazyComponent(() => import('./components/HealthResources').then(m => ({ default: m.HealthResources })));
+const Insurance = createLazyComponent(() => import('./components/Insurance').then(m => ({ default: m.Insurance })));
+const Messages = createLazyComponent(() => import('./components/Messages').then(m => ({ default: m.Messages })));
+const ConversationalSymptomChecker = createLazyComponent(() => import('./components/ConversationalSymptomChecker').then(m => ({ default: m.ConversationalSymptomChecker })));
+const EnhancedCalendar = createLazyComponent(() => import('./components/EnhancedCalendar').then(m => ({ default: m.EnhancedCalendar })));
+const AuthorProfile = createLazyComponent(() => import('./components/AuthorProfile').then(m => ({ default: m.AuthorProfile })));
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PreferencesProvider } from './contexts/PreferencesContext';
@@ -84,7 +112,8 @@ const MainApp: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   // For PATIENT role on mobile, default to 'resources' (Health Hub) instead of 'dashboard'
   const getInitialView = () => {
-    if (typeof window !== 'undefined' && user?.role === UserRole.PATIENT) {
+    // Safe window access for production builds
+    if (typeof window !== 'undefined' && window.innerWidth && user?.role === UserRole.PATIENT) {
       const isMobile = window.innerWidth < 768; // Mobile breakpoint
       if (isMobile) {
         return 'resources';
@@ -93,17 +122,25 @@ const MainApp: React.FC = () => {
     return 'dashboard';
   };
   
-  const [currentView, setCurrentView] = useState(() => getInitialView());
+  const [currentView, setCurrentView] = useState(() => {
+    // Initialize safely
+    try {
+      return getInitialView();
+    } catch (error) {
+      console.warn('Error getting initial view:', error);
+      return 'dashboard';
+    }
+  });
   
   // Update view when user loads and is PATIENT on mobile
   useEffect(() => {
-    if (user && user.role === UserRole.PATIENT) {
+    if (typeof window !== 'undefined' && window.innerWidth && user && user.role === UserRole.PATIENT) {
       const isMobile = window.innerWidth < 768;
       if (isMobile && currentView === 'dashboard') {
         setCurrentView('resources');
       }
     }
-  }, [user]);
+  }, [user, currentView]);
   
   const [showAuthModal, setShowAuthModal] = useState(false);
   
@@ -305,6 +342,22 @@ const MainApp: React.FC = () => {
           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
         </div>
         <p className="text-gray-500 font-bold text-sm tracking-widest uppercase animate-pulse">Loading...</p>
+      </div>
+    </div>
+  );
+
+  // Error fallback for lazy-loaded components
+  const LazyErrorFallback = ({ error, retry }: { error: Error; retry: () => void }) => (
+    <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+      <div className="max-w-md w-full bg-white dark:bg-white rounded-2xl shadow-xl p-8 text-center">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Failed to Load Component</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">{error.message}</p>
+        <button
+          onClick={retry}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     </div>
   );
@@ -539,43 +592,56 @@ const App = () => {
   }
 };
 
-const container = document.getElementById('root');
-if (!container) {
-  throw new Error('Root container not found. Make sure index.html has a <div id="root"></div> element.');
-}
+// Initialize app only in browser environment
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const container = document.getElementById('root');
+  if (!container) {
+    // Fallback if root container doesn't exist
+    const fallbackDiv = document.createElement('div');
+    fallbackDiv.id = 'root';
+    fallbackDiv.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;';
+    fallbackDiv.innerHTML = `
+      <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Root Container Not Found</h1>
+      <p style="color: #6b7280;">Make sure index.html has a &lt;div id="root"&gt;&lt;/div&gt; element.</p>
+    `;
+    document.body.appendChild(fallbackDiv);
+    throw new Error('Root container not found. Make sure index.html has a <div id="root"></div> element.');
+  }
 
-// Prevent multiple root creation during HMR
-let root = (container as any)._reactRootContainer;
-if (!root) {
+  // Prevent multiple root creation during HMR
+  let root = (container as any)._reactRootContainer;
+  if (!root) {
+    try {
+      root = createRoot(container);
+      (container as any)._reactRootContainer = root;
+    } catch (error) {
+      console.error('Failed to create React root:', error);
+      container.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+          <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Failed to Initialize React</h1>
+          <p style="color: #6b7280;">Please refresh the page or check the browser console for details.</p>
+          <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #2563eb; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
+            Reload Page
+          </button>
+        </div>
+      `;
+      throw error;
+    }
+  }
+
   try {
-    root = createRoot(container);
-    (container as any)._reactRootContainer = root;
+    root.render(<App />);
   } catch (error) {
-    console.error('Failed to create React root:', error);
+    console.error('Failed to render app:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     container.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
-        <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Failed to Initialize React</h1>
-        <p style="color: #6b7280;">Please refresh the page or check the browser console for details.</p>
+        <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Rendering Error</h1>
+        <p style="color: #6b7280;">${errorMessage}</p>
         <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #2563eb; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
           Reload Page
         </button>
       </div>
     `;
-    throw error;
   }
-}
-
-try {
-  root.render(<App />);
-} catch (error) {
-  console.error('Failed to render app:', error);
-  container.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
-      <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Rendering Error</h1>
-      <p style="color: #6b7280;">${error instanceof Error ? error.message : 'Unknown error occurred'}</p>
-      <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #2563eb; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
-        Reload Page
-      </button>
-    </div>
-  `;
 }

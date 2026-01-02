@@ -44,10 +44,17 @@ export default defineConfig({
           }
         },
       },
+      onwarn(warning, warn) {
+        // Suppress warnings about circular dependencies and eval
+        if (warning.code === 'CIRCULAR_DEPENDENCY' || warning.code === 'EVAL') {
+          return;
+        }
+        warn(warning);
+      },
     },
     // Increase chunk size warning limit
     chunkSizeWarningLimit: 1000,
-    // Enable source maps for production debugging
+    // Enable source maps for production debugging (set to true for debugging)
     sourcemap: false,
     // Minify
     minify: 'esbuild',
@@ -56,6 +63,10 @@ export default defineConfig({
     // Ensure common chunks are loaded synchronously
     commonjsOptions: {
       include: [/firebase/, /node_modules/],
+    },
+    // Ensure proper module resolution
+    modulePreload: {
+      polyfill: true,
     },
   },
   optimizeDeps: {
