@@ -499,30 +499,83 @@ const MainApp: React.FC = () => {
   );
 };
 
-const App = () => (
-  <ErrorBoundary>
-    <DarkModeProvider>
-      <NotificationProvider>
-        <AuthProvider>
-          <PreferencesProvider>
-            <MainApp />
-          </PreferencesProvider>
-        </AuthProvider>
-      </NotificationProvider>
-    </DarkModeProvider>
-  </ErrorBoundary>
-);
+const App = () => {
+  try {
+    return (
+      <ErrorBoundary>
+        <DarkModeProvider>
+          <NotificationProvider>
+            <AuthProvider>
+              <PreferencesProvider>
+                <MainApp />
+              </PreferencesProvider>
+            </AuthProvider>
+          </NotificationProvider>
+        </DarkModeProvider>
+      </ErrorBoundary>
+    );
+  } catch (error) {
+    console.error('Failed to initialize app:', error);
+    return (
+      <ErrorBoundary>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0A1B2E] p-4">
+          <div className="max-w-md w-full bg-white dark:bg-white rounded-2xl shadow-xl p-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Initialization Error
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Failed to initialize the application. Please refresh the page.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </ErrorBoundary>
+    );
+  }
+};
 
 const container = document.getElementById('root');
 if (!container) {
-  throw new Error('Root container not found');
+  throw new Error('Root container not found. Make sure index.html has a <div id="root"></div> element.');
 }
 
 // Prevent multiple root creation during HMR
 let root = (container as any)._reactRootContainer;
 if (!root) {
-  root = createRoot(container);
-  (container as any)._reactRootContainer = root;
+  try {
+    root = createRoot(container);
+    (container as any)._reactRootContainer = root;
+  } catch (error) {
+    console.error('Failed to create React root:', error);
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+        <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Failed to Initialize React</h1>
+        <p style="color: #6b7280;">Please refresh the page or check the browser console for details.</p>
+        <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #2563eb; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
+          Reload Page
+        </button>
+      </div>
+    `;
+    throw error;
+  }
 }
 
-root.render(<App />);
+try {
+  root.render(<App />);
+} catch (error) {
+  console.error('Failed to render app:', error);
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 1rem; padding: 2rem; text-align: center;">
+      <h1 style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">Rendering Error</h1>
+      <p style="color: #6b7280;">${error instanceof Error ? error.message : 'Unknown error occurred'}</p>
+      <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #2563eb; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
+        Reload Page
+      </button>
+    </div>
+  `;
+}
