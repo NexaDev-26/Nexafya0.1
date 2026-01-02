@@ -13,11 +13,23 @@ export default defineConfig({
     // Optimize chunk splitting
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
-          'ui-vendor': ['lucide-react'],
-          'utils-vendor': ['lodash-es', 'zod'],
+        manualChunks: (id) => {
+          // Keep Firebase together to avoid async loading issues
+          if (id.includes('firebase')) {
+            return 'firebase-vendor';
+          }
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('lucide-react')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('lodash') || id.includes('zod')) {
+              return 'utils-vendor';
+            }
+            return 'vendor';
+          }
         },
       },
     },
@@ -29,9 +41,13 @@ export default defineConfig({
     minify: 'esbuild',
     // Target modern browsers
     target: 'esnext',
+    // Ensure common chunks are loaded synchronously
+    commonjsOptions: {
+      include: [/firebase/, /node_modules/],
+    },
   },
   optimizeDeps: {
-    include: ['leaflet', 'lodash-es', 'zod'],
+    include: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'leaflet', 'lodash-es', 'zod'],
     esbuildOptions: {
       target: 'esnext',
     },

@@ -8,9 +8,14 @@ import { MOCK_CHALLENGES, MOCK_HEALTH_PLANS, MOCK_MEDICINES } from '../constants
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../contexts/DarkModeContext';
-// Firebase Firestore imports
+// Firebase Firestore imports - must be imported explicitly for production builds
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
+
+// Ensure Firebase functions are available (defensive check for production builds)
+if (typeof window !== 'undefined' && (!collection || !query || !where || !onSnapshot)) {
+  console.error('Firebase Firestore functions not properly imported');
+}
 import { VitalsScanner } from './VitalsScanner';
 import { SkeletonLoader } from './SkeletonLoader';
 import { EmptyState } from './EmptyState';
@@ -93,46 +98,63 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Load recent orders for patient dashboard
   useEffect(() => {
-    if (user?.role === UserRole.PATIENT && user.id) {
+    if (user?.role === UserRole.PATIENT && user.id && firestore) {
       setLoadingRecentOrders(true);
-      // Ensure Firebase functions are imported
-      if (typeof collection === 'undefined' || typeof firestore === 'undefined') {
-        console.error('Firebase imports not loaded properly');
-        setLoadingRecentOrders(false);
-        return;
-      }
       
-      const ordersRef = collection(firestore, 'orders');
-      const q = query(ordersRef, where('patient_id', '==', user.id));
-      
-      const unsubscribe = onSnapshot(q, 
-        (snapshot) => {
-          const ordersData = snapshot.docs.map((doc) => {
-            const data = doc.data();
-            const createdAt = data.createdAt?.toDate?.() || (data.created_at?.toDate?.()) || new Date();
-            return {
-              id: doc.id,
-              orderId: doc.id.slice(0, 8).toUpperCase(),
-              total: data.total_amount || data.total || 0,
-              status: data.status || 'PENDING',
-              date: createdAt.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric'
-              }),
-              createdAt: createdAt
-            };
-          }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
-          
-          setRecentOrders(ordersData);
+      try {
+        // Verify all required Firebase functions are available
+        if (!collection || !query || !where || !onSnapshot) {
+          console.error('Firebase Firestore functions not available:', { collection: !!collection, query: !!query, where: !!where, onSnapshot: !!onSnapshot });
           setLoadingRecentOrders(false);
-        },
-        (error) => {
-          console.error('Recent orders error:', error);
-          setLoadingRecentOrders(false);
+          return;
         }
-      );
+        
+        const ordersRef = collection(firestore, 'orders');
+        const q = query(ordersRef, where('patient_id', '==', user.id));
+      
+        const unsubscribe = onSnapshot(q, 
+          (snapshot) => {
+            try {
+              const ordersData = snapshot.docs.map((doc) => {
+                const data = doc.data();
+                const createdAt = data.createdAt?.toDate?.() || (data.created_at?.toDate?.()) || new Date();
+                return {
+                  id: doc.id,
+                  orderId: doc.id.slice(0, 8).toUpperCase(),
+                  total: data.total_amount || data.total || 0,
+                  status: data.status || 'PENDING',
+                  date: createdAt.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric'
+                  }),
+                  createdAt: createdAt
+                };
+              }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
+              
+              setRecentOrders(ordersData);
+              setLoadingRecentOrders(false);
+            } catch (mapError) {
+              console.error('Error processing orders data:', mapError);
+              setLoadingRecentOrders(false);
+            }
+          },
+          (error) => {
+            console.error('Recent orders listener error:', error);
+            setLoadingRecentOrders(false);
+          }
+        );
 
-      return () => unsubscribe();
+        return () => {
+          try {
+            unsubscribe();
+          } catch (unsubError) {
+            console.error('Error unsubscribing from orders:', unsubError);
+          }
+        };
+      } catch (error) {
+        console.error('Error setting up orders listener:', error);
+        setLoadingRecentOrders(false);
+      }
     }
   }, [user?.id, user?.role, firestore]);
 
