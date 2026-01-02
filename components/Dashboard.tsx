@@ -11,11 +11,6 @@ import { useDarkMode } from '../contexts/DarkModeContext';
 // Firebase Firestore imports - must be imported explicitly for production builds
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
-
-// Ensure Firebase functions are available (defensive check for production builds)
-if (typeof window !== 'undefined' && (!collection || !query || !where || !onSnapshot)) {
-  console.error('Firebase Firestore functions not properly imported');
-}
 import { VitalsScanner } from './VitalsScanner';
 import { SkeletonLoader } from './SkeletonLoader';
 import { EmptyState } from './EmptyState';
@@ -98,63 +93,99 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Load recent orders for patient dashboard
   useEffect(() => {
-    if (user?.role === UserRole.PATIENT && user.id && firestore) {
+    if (user?.role === UserRole.PATIENT && user.id) {
+      if (!firestore) {
+        console.error('Firestore not initialized');
+        setLoadingRecentOrders(false);
+        return;
+      }
+      
       setLoadingRecentOrders(true);
+      let unsubscribe: (() => void) | null = null;
       
-      try {
-        // Verify all required Firebase functions are available
-        if (!collection || !query || !where || !onSnapshot) {
-          console.error('Firebase Firestore functions not available:', { collection: !!collection, query: !!query, where: !!where, onSnapshot: !!onSnapshot });
-          setLoadingRecentOrders(false);
-          return;
-        }
-        
-        const ordersRef = collection(firestore, 'orders');
-        const q = query(ordersRef, where('patient_id', '==', user.id));
-      
-        const unsubscribe = onSnapshot(q, 
-          (snapshot) => {
+      // Use async IIFE to handle dynamic imports if needed
+      (async () => {
+        try {
+          // Small delay to ensure Firebase modules are loaded in production builds
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          // Ensure Firebase functions are available - try dynamic import as fallback
+          let colFn = collection;
+          let queryFn = query;
+          let whereFn = where;
+          let onSnapshotFn = onSnapshot;
+          
+          // If functions are undefined, dynamically import them
+          if (!colFn || !queryFn || !whereFn || !onSnapshotFn) {
             try {
-              const ordersData = snapshot.docs.map((doc) => {
-                const data = doc.data();
-                const createdAt = data.createdAt?.toDate?.() || (data.created_at?.toDate?.()) || new Date();
-                return {
-                  id: doc.id,
-                  orderId: doc.id.slice(0, 8).toUpperCase(),
-                  total: data.total_amount || data.total || 0,
-                  status: data.status || 'PENDING',
-                  date: createdAt.toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric'
-                  }),
-                  createdAt: createdAt
-                };
-              }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
-              
-              setRecentOrders(ordersData);
+              const firestoreModule = await import('firebase/firestore');
+              colFn = firestoreModule.collection;
+              queryFn = firestoreModule.query;
+              whereFn = firestoreModule.where;
+              onSnapshotFn = firestoreModule.onSnapshot;
+            } catch (importError) {
+              console.error('Failed to dynamically import Firebase Firestore:', importError);
               setLoadingRecentOrders(false);
-            } catch (mapError) {
-              console.error('Error processing orders data:', mapError);
+              return;
+            }
+          }
+          
+          if (!colFn || !queryFn || !whereFn || !onSnapshotFn) {
+            console.error('Firebase Firestore functions still not available after import attempt');
+            setLoadingRecentOrders(false);
+            return;
+          }
+          
+          const ordersRef = colFn(firestore, 'orders');
+          const q = queryFn(ordersRef, whereFn('patient_id', '==', user.id));
+      
+          unsubscribe = onSnapshotFn(q,
+            (snapshot) => {
+              try {
+                const ordersData = snapshot.docs.map((doc) => {
+                  const data = doc.data();
+                  const createdAt = data.createdAt?.toDate?.() || (data.created_at?.toDate?.()) || new Date();
+                  return {
+                    id: doc.id,
+                    orderId: doc.id.slice(0, 8).toUpperCase(),
+                    total: data.total_amount || data.total || 0,
+                    status: data.status || 'PENDING',
+                    date: createdAt.toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric'
+                    }),
+                    createdAt: createdAt
+                  };
+                }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
+                
+                setRecentOrders(ordersData);
+                setLoadingRecentOrders(false);
+              } catch (mapError) {
+                console.error('Error processing orders data:', mapError);
+                setLoadingRecentOrders(false);
+              }
+            },
+            (error) => {
+              console.error('Recent orders listener error:', error);
               setLoadingRecentOrders(false);
             }
-          },
-          (error) => {
-            console.error('Recent orders listener error:', error);
-            setLoadingRecentOrders(false);
-          }
-        );
-
-        return () => {
+          );
+        } catch (error) {
+          console.error('Error setting up orders listener:', error);
+          setLoadingRecentOrders(false);
+        }
+      })();
+      
+      // Cleanup function
+      return () => {
+        if (unsubscribe) {
           try {
             unsubscribe();
           } catch (unsubError) {
             console.error('Error unsubscribing from orders:', unsubError);
           }
-        };
-      } catch (error) {
-        console.error('Error setting up orders listener:', error);
-        setLoadingRecentOrders(false);
-      }
+        }
+      };
     }
   }, [user?.id, user?.role, firestore]);
 
