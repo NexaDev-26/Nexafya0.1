@@ -29,13 +29,20 @@ export const auth = getAuth(app);
 let db;
 if (typeof window !== 'undefined') {
   try {
-    // Try new API first
+    // Try new API first - persistentLocalCache enables multi-tab sync by default in v9+
     db = initializeFirestore(app, {
       localCache: persistentLocalCache(),
     }, 'nexafyadb');
   } catch (error: any) {
-    // If already initialized or fails, fallback to regular initialization
-    db = getFirestore(app, 'nexafyadb');
+    // If already initialized or fails (e.g., another tab has exclusive access), 
+    // fallback to regular initialization which will use memory cache
+    console.warn('Firestore persistence initialization failed, using memory cache:', error.message);
+    try {
+      db = getFirestore(app, 'nexafyadb');
+    } catch (fallbackError: any) {
+      // If that also fails, try without database name
+      db = getFirestore(app);
+    }
   }
 } else {
   db = getFirestore(app, 'nexafyadb');

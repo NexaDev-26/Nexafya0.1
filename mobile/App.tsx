@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, StatusBar, SafeAreaView, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { Ionicons, FontAwesome5, MaterialIcons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
 
 // Production API URL
 const API_BASE_URL = 'http://192.168.1.100:3001'; // Replace with your real local/remote IP
+
+// TODO: Integrate with Firebase Auth for mobile app
+// For now, this is a placeholder that needs Firebase React Native SDK integration
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('Home');
@@ -14,48 +16,33 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Initial Session Check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchUserData(session.user.id);
-      else setLoading(false);
-    });
-
-    // 2. Listen for Auth Changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchUserData(session.user.id);
-      else {
-          setUser(null);
-          setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // TODO: Replace with Firebase Auth integration
+    // For now, simulate loading
+    setTimeout(() => {
+      setLoading(false);
+      // In production, check Firebase Auth session here
+      // Example: onAuthStateChanged(auth, (user) => { ... })
+    }, 1000);
   }, []);
 
   const fetchUserData = async (userId) => {
       try {
           setLoading(true);
-          const [profileRes, aptRes] = await Promise.all([
-              supabase.from('profiles').select('*').eq('id', userId).single(),
-              supabase.from('appointments').select('*, doctor:doctor_id(name)').eq('patient_id', userId).order('scheduled_at', { ascending: false })
-          ]);
+          // TODO: Replace with Firebase Firestore queries
+          // Example: 
+          // const userDoc = await getDoc(doc(firestore, 'users', userId));
+          // const appointmentsQuery = query(collection(firestore, 'appointments'), where('patient_id', '==', userId));
           
-          if (profileRes.data) setUser(profileRes.data);
-          if (aptRes.data) setAppointments(aptRes.data);
-
-          // 3. Real-time Order Subscription
-          const orderChannel = supabase.channel(`user-orders-${userId}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `patient_id=eq.${userId}` }, 
-            (payload) => {
-                Alert.alert("Order Update", `Your order status is now: ${payload.new.status}`);
-            })
-            .subscribe();
-
-          return () => supabase.removeChannel(orderChannel);
+          // Placeholder - replace with actual Firebase calls
+          console.log('Fetching user data for:', userId);
+          
+          // TODO: Set up real-time listeners with Firebase onSnapshot
+          // Example:
+          // const unsubscribe = onSnapshot(query(...), (snapshot) => { ... });
+          
       } catch (err) {
           console.error("Data Fetch Error", err);
+          Alert.alert("Error", "Failed to load user data");
       } finally {
           setLoading(false);
       }

@@ -22,6 +22,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [doctorPackages, setDoctorPackages] = useState<SubscriptionPackage[]>([]);
   const [pharmacyPackages, setPharmacyPackages] = useState<SubscriptionPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -29,27 +31,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     
     // Fetch Dynamic Data
     const loadContent = async () => {
-        try {
-            const prts = await db.getPartners();
-            setPartners(prts || []);
-        } catch (error) {
-            console.error('Error loading partners:', error);
-            setPartners([]);
-        }
-        
-        try {
-            const pkgs = await db.getPackages();
-            setDoctorPackages([]); // Doctors use trust tiers, not subscriptions
-            // Safely filter pharmacy packages
-            const pharmacyPkgs = Array.isArray(pkgs) 
-                ? pkgs.filter(p => p && (p.role === 'PHARMACY' || p.role === 'pharmacy'))
-                : [];
-            setPharmacyPackages(pharmacyPkgs);
-        } catch (error) {
-            console.error('Error loading packages:', error);
-            setDoctorPackages([]);
-            setPharmacyPackages([]);
-        }
+      try {
+        setLoading(true);
+        setError(null);
+        const [prts, pkgs] = await Promise.all([
+          db.getPartners().catch(err => {
+            console.warn('Error loading partners:', err);
+            return [];
+          }),
+          db.getPackages().catch(err => {
+            console.warn('Error loading packages:', err);
+            return [];
+          })
+        ]);
+        setPartners(prts);
+        setDoctorPackages([]); // Doctors use trust tiers, not subscriptions
+        setPharmacyPackages(pkgs.filter(p => p.role === 'PHARMACY'));
+      } catch (err) {
+        console.error('Error loading landing page content:', err);
+        setError('Failed to load some content. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
     };
     loadContent();
 
@@ -95,57 +98,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
          <div className="border-y border-gray-100 dark:border-gray-700/50 bg-white dark:bg-[#0A0F1C] py-16 mb-24 transition-colors duration-300">
              <div className="max-w-[1280px] mx-auto px-6">
                  <div className="text-center mb-12"><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Trusted by healthcare partners across Tanzania</p></div>
-                 {partners.length > 0 ? (
-                     <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
-                         {partners.filter(p => p && p.id).map((partner) => (
+                 <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
+                     {loading && partners.length === 0 ? (
+                         <div className="col-span-full text-center text-gray-500 dark:text-gray-400">Loading partners...</div>
+                     ) : partners.length === 0 ? (
+                         <div className="col-span-full text-center text-gray-500 dark:text-gray-400">No partners available</div>
+                     ) : (
+                         partners.map((partner) => (
                              <div key={partner.id} className="flex flex-col items-center gap-4 group cursor-default">
                                  <div className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white dark:bg-[#0F172A] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50 group-hover:shadow-md transition-shadow">
                                      {partner.logoUrl ? (
                                          <img 
                                              src={partner.logoUrl} 
-                                             alt={partner.name || 'Partner'} 
+                                             alt={partner.name} 
                                              className="max-w-full max-h-full object-contain dark:invert" 
                                              onError={(e) => {
                                                  const target = e.target as HTMLImageElement;
                                                  target.style.display = 'none';
                                                  const parent = target.parentElement;
-                                                 if (parent && partner.name && !parent.querySelector('.logo-fallback')) {
+                                                 if (parent && !parent.querySelector('.fallback-initial')) {
                                                      const fallback = document.createElement('div');
-                                                     fallback.className = 'logo-fallback text-2xl font-bold text-teal-600 dark:text-teal-400';
-                                                     fallback.textContent = partner.name.charAt(0).toUpperCase();
+                                                     fallback.className = 'text-2xl font-bold text-teal-600 dark:text-teal-400 fallback-initial';
+                                                     fallback.textContent = partner.name.charAt(0);
                                                      parent.appendChild(fallback);
                                                  }
                                              }} 
                                          />
                                      ) : (
-                                         <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-                                             {partner.name ? partner.name.charAt(0).toUpperCase() : 'P'}
-                                         </div>
+                                         <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{partner.name.charAt(0)}</div>
                                      )}
                                  </div>
-                                 <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{partner.name || 'Partner'}</span>
+                                 <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{partner.name}</span>
                              </div>
-                         ))}
-                     </div>
-                 ) : (
-                     <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
-                         {/* Default partners when none are loaded */}
-                         {[
-                             { name: 'Tanzania Medical Council', initial: 'TMC' },
-                             { name: 'Muhimbili National Hospital', initial: 'MNH' },
-                             { name: 'Keko Pharma', initial: 'KP' },
-                             { name: 'Ministry of Health', initial: 'MoH' },
-                             { name: 'NHIF', initial: 'NHIF' }
-                         ].map((defaultPartner, index) => (
-                             <div key={`default-${index}`} className="flex flex-col items-center gap-4 group cursor-default">
-                                 <div className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white dark:bg-[#0F172A] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50 group-hover:shadow-md transition-shadow">
-                                     <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{defaultPartner.initial}</div>
-                                 </div>
-                                 <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{defaultPartner.name}</span>
-                             </div>
-                         ))}
-                     </div>
-                 )}
+                         ))
+                     )}
+                 </div>
              </div>
          </div>
 
@@ -622,6 +609,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
       {/* --- Main Content Area --- */}
       <main className="flex-grow pt-24 w-full">
+         {error && (
+           <div className="max-w-[1280px] mx-auto px-6 mb-4">
+             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-sm text-yellow-800 dark:text-yellow-200">
+               {error}
+             </div>
+           </div>
+         )}
          {currentView === 'home' && <RenderHome />}
          {currentView === 'patients' && <RenderPatients />}
          {currentView === 'doctors' && <RenderDoctors />}
