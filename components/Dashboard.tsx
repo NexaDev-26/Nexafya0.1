@@ -8,6 +8,9 @@ import { MOCK_CHALLENGES, MOCK_HEALTH_PLANS, MOCK_MEDICINES } from '../constants
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../contexts/DarkModeContext';
+// Firebase Firestore imports
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db as firestore } from '../lib/firebase';
 import { VitalsScanner } from './VitalsScanner';
 import { SkeletonLoader } from './SkeletonLoader';
 import { EmptyState } from './EmptyState';
@@ -92,6 +95,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     if (user?.role === UserRole.PATIENT && user.id) {
       setLoadingRecentOrders(true);
+      // Ensure Firebase functions are imported
+      if (typeof collection === 'undefined' || typeof firestore === 'undefined') {
+        console.error('Firebase imports not loaded properly');
+        setLoadingRecentOrders(false);
+        return;
+      }
+      
       const ordersRef = collection(firestore, 'orders');
       const q = query(ordersRef, where('patient_id', '==', user.id));
       
@@ -124,7 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       return () => unsubscribe();
     }
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, firestore]);
 
   // SOS Countdown Logic
   useEffect(() => {

@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { debounce } from 'lodash-es';
 import { Medicine, CartItem, UserRole, PharmacyBranch, SalesRecord, InventoryItem } from '../types';
-import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon, Menu, ChevronDown, ChevronUp, Camera } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +25,8 @@ import { InvoiceGenerator } from './InvoiceGenerator';
 import { StockAlerts } from './StockAlerts';
 import { SkeletonLoader } from './SkeletonLoader';
 import { PullToRefresh } from './PullToRefresh';
+import { BottomSheet } from './BottomSheet';
+import { QuickActionsFAB } from './QuickActionsFAB';
 
 export const Pharmacy: React.FC = memo(() => {
   const { user } = useAuth();
@@ -43,6 +45,12 @@ export const Pharmacy: React.FC = memo(() => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [sortBy, setSortBy] = useState<'default' | 'price-low' | 'price-high' | 'name' | 'popular'>('default');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [stickySearch, setStickySearch] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [quickFilter, setQuickFilter] = useState<'all' | 'inStock' | 'nearby' | 'lowPrice'>('all');
+  const [sidebarExpanded, setSidebarExpanded] = useState<{ [key: string]: boolean }>({ primary: true, secondary: false });
   
   // Debounce search input
   const debouncedSearch = useCallback(
@@ -151,8 +159,8 @@ export const Pharmacy: React.FC = memo(() => {
 
   // Order Details Modal - defined early to avoid hoisting issues
   const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in safe-area-inset-bottom">
+      <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl relative mb-16 md:mb-0 pb-20 md:pb-6">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500">
           <X size={24} />
         </button>
@@ -463,19 +471,42 @@ export const Pharmacy: React.FC = memo(() => {
       }
   };
 
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   if (user?.role === UserRole.PHARMACY) {
       return (
           <>
               {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
               <PullToRefresh onRefresh={handlePharmacyRefresh} disabled={loadingOrders}>
-          <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-6 animate-in fade-in duration-500">
+          <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-4 md:gap-6 animate-in fade-in duration-500">
+              
+              {/* Mobile Sidebar Toggle Button */}
+              <button
+                onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+                className="md:hidden fixed top-24 left-4 z-40 p-3 bg-white dark:bg-[#0F172A] rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Toggle sidebar"
+              >
+                <Menu size={20} />
+              </button>
+
+              {/* Mobile Sidebar Overlay */}
+              {isMobileSidebarOpen && (
+                <div 
+                  className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                />
+              )}
               
               {/* Sidebar */}
-              <div className="w-full md:w-64 bg-white dark:bg-[#0F172A] rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 p-4">
+              <div className={`w-full md:w-64 bg-white dark:bg-[#0F172A] rounded-[2.5rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 p-4 md:p-4 mb-4 md:mb-0 fixed md:static top-0 left-0 h-full md:h-auto z-50 md:z-auto transform transition-transform duration-300 ${
+                isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+              } overflow-y-auto pb-20 md:pb-4`}>
                   <div className="p-4 mb-4 border-b border-gray-100 dark:border-gray-700/50">
                       <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">My Pharmacy</h2>
                   </div>
-                  {[
+                  {(() => {
+                  const allItems = [
                       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
                       { id: 'orders', label: 'Orders', icon: Package },
                       { id: 'pos', label: 'POS', icon: ShoppingCart },
@@ -490,19 +521,92 @@ export const Pharmacy: React.FC = memo(() => {
                       { id: 'unit-converter', label: 'Unit Converter', icon: ArrowRight },
                       { id: 'prescriptions', label: 'Prescriptions', icon: QrCode },
                       { id: 'branches', label: 'Branches', icon: Store },
-                  ].map(item => (
-                      <button 
-                          key={item.id} 
-                          onClick={() => setMgmtTab(item.id as any)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-colors ${mgmtTab === item.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                      >
-                          <item.icon size={18} /> {item.label}
-                      </button>
-                  ))}
+                  ];
+                  
+                  // Group sidebar items
+                  const primaryItems = allItems.slice(0, 4); // Dashboard, Orders, POS, Inventory
+                  const secondaryItems = allItems.slice(4);
+                  
+                  return (
+                    <>
+                      {/* Primary Items */}
+                      <div className="space-y-1">
+                        {primaryItems.map(item => (
+                          <button 
+                            key={item.id} 
+                            onClick={() => {
+                              setMgmtTab(item.id as any);
+                              setIsMobileSidebarOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-colors ${mgmtTab === item.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                          >
+                            <item.icon size={18} /> {item.label}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {/* Secondary Items (Collapsible) */}
+                      {secondaryItems.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                          <button
+                            onClick={() => setSidebarExpanded({...sidebarExpanded, secondary: !sidebarExpanded.secondary})}
+                            className="w-full flex items-center justify-between px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                          >
+                            <span className="font-bold text-xs uppercase tracking-wider">More</span>
+                            {sidebarExpanded.secondary ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                          
+                          {sidebarExpanded.secondary && (
+                            <div className="mt-2 space-y-1">
+                              {secondaryItems.map(item => (
+                                <button 
+                                  key={item.id} 
+                                  onClick={() => {
+                                    setMgmtTab(item.id as any);
+                                    setIsMobileSidebarOpen(false);
+                                  }}
+                                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-colors ${mgmtTab === item.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                >
+                                  <item.icon size={18} /> {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Main Content */}
-              <div className="flex-1 bg-white dark:bg-[#0F172A] rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden flex flex-col p-6">
+              <div className="flex-1 bg-white dark:bg-[#0F172A] rounded-[2.5rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden flex flex-col p-4 md:p-6 pb-24 md:pb-6">
+                  
+                  {/* Mobile Horizontal Tab Bar */}
+                  <div className="md:hidden overflow-x-auto mb-4 pb-2 -mx-4 px-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div className="flex gap-2 min-w-max">
+                      {[
+                        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'orders', label: 'Orders', icon: Package },
+                        { id: 'pos', label: 'POS', icon: ShoppingCart },
+                        { id: 'inventory', label: 'Inventory', icon: Package },
+                        { id: 'prescriptions', label: 'RX', icon: QrCode },
+                      ].map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => setMgmtTab(item.id as any)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
+                            mgmtTab === item.id
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          <item.icon size={16} />
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   
                   {/* INVENTORY TAB */}
                   {mgmtTab === 'inventory' && (
@@ -583,26 +687,26 @@ export const Pharmacy: React.FC = memo(() => {
 
                   {/* PRESCRIPTIONS TAB */}
                   {mgmtTab === 'prescriptions' && (
-                      <div className="space-y-8">
-                          <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-display">Prescription Fulfillment</h2>
+                      <div className="space-y-6 md:space-y-8 pb-24 md:pb-6">
+                          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white font-display">Prescription Fulfillment</h2>
                           
-                          <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-8 border-2 border-dashed border-gray-300 dark:border-gray-700/50 flex flex-col items-center justify-center text-center">
+                          <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-4 md:p-8 border-2 border-dashed border-gray-300 dark:border-gray-700/50 flex flex-col items-center justify-center text-center">
                               <QrCode size={48} className="text-gray-400 mb-4" />
                               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Scan Patient QR Code</h3>
                               <p className="text-sm text-gray-500 mb-6 max-w-xs">Enter the code found on the patient's app to view and dispense medicines.</p>
                               
-                              <div className="flex gap-2 w-full max-w-md">
+                              <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
                                   <input 
                                       type="text" 
                                       value={qrInput}
                                       onChange={(e) => setQrInput(e.target.value.toUpperCase())}
                                       placeholder="e.g. RX-17382..."
-                                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-[#0A1B2E] text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-[#0A1B2E] text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase text-sm md:text-base"
                                   />
                                   <button 
                                     onClick={handleVerifyQR} 
                                     disabled={isVerifying}
-                                    className="bg-blue-600 text-white px-6 rounded-xl font-bold disabled:opacity-50"
+                                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50 hover:bg-blue-700 transition-colors whitespace-nowrap"
                                   >
                                       {isVerifying ? 'Checking...' : 'Verify'}
                                   </button>
@@ -610,34 +714,34 @@ export const Pharmacy: React.FC = memo(() => {
                           </div>
 
                           {claimingRx && (
-                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800 animate-in slide-in-from-bottom-4">
-                                  <div className="flex justify-between items-start mb-4">
-                                      <div>
-                                          <h4 className="font-bold text-lg text-emerald-800 dark:text-emerald-300">Valid Prescription Found</h4>
-                                          <p className="text-sm text-emerald-600 dark:text-emerald-400">Patient: {claimingRx.patient} • Dr. {claimingRx.doctor}</p>
-                                          <p className="text-xs text-gray-500 mt-1">ID: {claimingRx.qr_code}</p>
+                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 md:p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800 animate-in slide-in-from-bottom-4 pb-24 md:pb-6">
+                                  <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-2">
+                                      <div className="flex-1">
+                                          <h4 className="font-bold text-base md:text-lg text-emerald-800 dark:text-emerald-300">Valid Prescription Found</h4>
+                                          <p className="text-xs md:text-sm text-emerald-600 dark:text-emerald-400">Patient: {claimingRx.patient} • Dr. {claimingRx.doctor}</p>
+                                          <p className="text-xs text-gray-500 mt-1 break-all">ID: {claimingRx.qr_code}</p>
                                       </div>
-                                      <span className="bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-3 py-1 rounded-full text-xs font-bold">{claimingRx.status}</span>
+                                      <span className="bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">{claimingRx.status}</span>
                                   </div>
                                   
                                   <div className="bg-white dark:bg-[#0F172A] rounded-xl p-4 mb-6">
                                       {claimingRx.items && claimingRx.items.length > 0 ? claimingRx.items.map((item: any, i: number) => (
-                                          <div key={i} className="flex justify-between border-b border-gray-100 dark:border-gray-700/50 last:border-0 py-2">
-                                              <span className="font-medium">{item.name} <span className="text-gray-500 text-sm">({item.dosage})</span></span>
-                                              <span className="font-bold">x{item.qty || item.quantity || 1}</span>
+                                          <div key={i} className="flex justify-between border-b border-gray-100 dark:border-gray-700/50 last:border-0 py-2 text-sm md:text-base">
+                                              <span className="font-medium flex-1 pr-2">{item.name} <span className="text-gray-500 text-xs md:text-sm">({item.dosage})</span></span>
+                                              <span className="font-bold whitespace-nowrap">x{item.qty || item.quantity || 1}</span>
                                           </div>
                                       )) : (
-                                          <p className="text-gray-500 italic">No items listed in prescription.</p>
+                                          <p className="text-gray-500 italic text-sm">No items listed in prescription.</p>
                                       )}
-                                      {claimingRx.notes && <p className="mt-4 text-sm text-gray-600 italic">Doctor Notes: {claimingRx.notes}</p>}
+                                      {claimingRx.notes && <p className="mt-4 text-xs md:text-sm text-gray-600 dark:text-gray-400 italic break-words">Doctor Notes: {claimingRx.notes}</p>}
                                   </div>
 
-                                  <div className="flex gap-4">
-                                      <button onClick={() => setClaimingRx(null)} className="flex-1 py-3 bg-white dark:bg-[#0F172A] text-gray-700 dark:text-gray-300 font-bold rounded-xl border border-gray-200 dark:border-gray-700/50">Cancel</button>
+                                  <div className="flex flex-col sm:flex-row gap-3">
+                                      <button onClick={() => setClaimingRx(null)} className="flex-1 py-3 bg-white dark:bg-[#0F172A] text-gray-700 dark:text-gray-300 font-bold rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancel</button>
                                       <button 
                                         onClick={handleClaimRx} 
                                         disabled={isDispensing}
-                                        className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 disabled:opacity-70"
+                                        className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 disabled:opacity-70 transition-colors"
                                       >
                                           {isDispensing ? 'Processing...' : 'Dispense Medicines'}
                                       </button>
@@ -658,17 +762,75 @@ export const Pharmacy: React.FC = memo(() => {
                           </div>
 
                           {showAddBranch && (
-                              <div className="bg-gray-50 dark:bg-[#0A1B2E]/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/50 mb-6 animate-in slide-in-from-top-2">
-                                  <h3 className="font-bold mb-4">New Branch Details</h3>
+                              <div className="bg-gray-50 dark:bg-[#0A1B2E]/50 p-4 md:p-6 rounded-2xl border border-gray-200 dark:border-gray-700/50 mb-6 animate-in slide-in-from-top-2 pb-24 md:pb-6">
+                                  <h3 className="font-bold mb-4 text-lg">New Branch Details</h3>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <input type="text" placeholder="Branch Name" value={newBranch.name} onChange={e => setNewBranch({...newBranch, name: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="Location" value={newBranch.location} onChange={e => setNewBranch({...newBranch, location: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="License Number" value={newBranch.license} onChange={e => setNewBranch({...newBranch, license: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="Phone Contact" value={newBranch.phone} onChange={e => setNewBranch({...newBranch, phone: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
+                                      <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Branch Name *</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="Branch Name" 
+                                          value={newBranch.name} 
+                                          onChange={e => setNewBranch({...newBranch, name: e.target.value})} 
+                                          className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              (e.target as HTMLInputElement).nextElementSibling?.querySelector('input')?.focus();
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Location *</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="Location" 
+                                          value={newBranch.location} 
+                                          onChange={e => setNewBranch({...newBranch, location: e.target.value})} 
+                                          className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              (e.target as HTMLInputElement).nextElementSibling?.querySelector('input')?.focus();
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">License Number</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="License Number" 
+                                          value={newBranch.license} 
+                                          onChange={e => setNewBranch({...newBranch, license: e.target.value})} 
+                                          className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              (e.target as HTMLInputElement).nextElementSibling?.querySelector('input')?.focus();
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Phone Contact</label>
+                                        <input 
+                                          type="tel" 
+                                          inputMode="tel"
+                                          placeholder="Phone Contact" 
+                                          value={newBranch.phone} 
+                                          onChange={e => setNewBranch({...newBranch, phone: e.target.value})} 
+                                          className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              handleCreateBranch();
+                                            }
+                                          }}
+                                        />
+                                      </div>
                                   </div>
-                                  <div className="flex justify-end gap-2 mt-4">
-                                      <button onClick={() => setShowAddBranch(false)} className="px-4 py-2 text-gray-500 font-bold">Cancel</button>
-                                      <button onClick={handleCreateBranch} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Save Branch</button>
+                                  <div className="flex flex-col sm:flex-row justify-end gap-2 mt-6">
+                                      <button onClick={() => setShowAddBranch(false)} className="px-6 py-3 text-gray-600 dark:text-gray-400 font-bold hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
+                                      <button onClick={handleCreateBranch} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">Save Branch</button>
                                   </div>
                               </div>
                           )}
@@ -775,6 +937,36 @@ export const Pharmacy: React.FC = memo(() => {
               </div>
           </div>
           </PullToRefresh>
+          
+          {/* Quick Actions FAB for Pharmacy */}
+          {user?.role === UserRole.PHARMACY && (
+            <QuickActionsFAB
+              position="bottom-right"
+              actions={[
+                {
+                  id: 'scan-qr',
+                  label: 'Scan QR Code',
+                  icon: QrCode,
+                  onClick: () => setMgmtTab('prescriptions'),
+                  color: 'text-blue-600 dark:text-blue-400',
+                },
+                {
+                  id: 'add-inventory',
+                  label: 'Add Inventory',
+                  icon: Package,
+                  onClick: () => setMgmtTab('inventory'),
+                  color: 'text-emerald-600 dark:text-emerald-400',
+                },
+                {
+                  id: 'new-order',
+                  label: 'New POS Order',
+                  icon: ShoppingCart,
+                  onClick: () => setMgmtTab('pos'),
+                  color: 'text-purple-600 dark:text-purple-400',
+                },
+              ]}
+            />
+          )}
           </>
       );
   }
@@ -879,7 +1071,20 @@ export const Pharmacy: React.FC = memo(() => {
   const maxPrice = medicines.length > 0 ? Math.max(...medicines.map(m => m.price || 0)) : 1000000;
   const minPrice = medicines.length > 0 ? Math.min(...medicines.map(m => m.price || 0)) : 0;
   
-  // Enhanced filtering with price range
+  // Sticky search effect
+  useEffect(() => {
+    const handleScroll = () => {
+      if (searchRef.current) {
+        const rect = searchRef.current.getBoundingClientRect();
+        setStickySearch(rect.top <= 0);
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Enhanced filtering with price range and quick filters
   // Memoize filtered medicines with debounced search
   const filteredMedicines = useMemo(() => {
     let filtered = medicines.filter(med => {
@@ -890,7 +1095,16 @@ export const Pharmacy: React.FC = memo(() => {
         (med.pharmacyName && med.pharmacyName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'All' || med.category === selectedCategory;
       const matchesPrice = (med.price || 0) >= priceRange[0] && (med.price || 0) <= priceRange[1];
-      return matchesSearch && matchesCategory && matchesPrice;
+      
+      // Apply quick filters
+      let matchesQuickFilter = true;
+      if (quickFilter === 'inStock') {
+        matchesQuickFilter = med.inStock === true;
+      } else if (quickFilter === 'lowPrice') {
+        matchesQuickFilter = (med.price || 0) <= 10000;
+      }
+      
+      return matchesSearch && matchesCategory && matchesPrice && matchesQuickFilter;
     });
     
     // Sorting
@@ -911,7 +1125,18 @@ export const Pharmacy: React.FC = memo(() => {
           return 0;
       }
     });
-  }, [medicines, debouncedSearchTerm, selectedCategory, priceRange, sortBy]);
+  }, [medicines, debouncedSearchTerm, selectedCategory, priceRange, sortBy, quickFilter]);
+  
+  // Pagination
+  const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage);
+  const paginatedMedicines = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredMedicines.slice(start, start + itemsPerPage);
+  }, [filteredMedicines, currentPage, itemsPerPage]);
+  
+  useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [debouncedSearchTerm, selectedCategory, priceRange, quickFilter]);
   
   // Memoize cart total
   const cartTotal = useMemo(() => {
@@ -923,22 +1148,22 @@ export const Pharmacy: React.FC = memo(() => {
 
   // Patient View - Redesigned with Conversion Focus
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 relative">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 relative pb-24 md:pb-6">
       {/* Hero Section with Trust Signals */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-2xl md:rounded-[2.5rem] p-6 md:p-12 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="text-yellow-300" size={24} />
             <span className="text-yellow-200 font-bold text-sm uppercase tracking-wider">Trusted by 10,000+ Patients</span>
                     </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold mb-3 md:mb-4 leading-tight">
             Your Health, Delivered to Your Door
           </h1>
-          <p className="text-blue-100 text-lg mb-6 max-w-2xl">
+          <p className="text-blue-100 text-sm md:text-lg mb-4 md:mb-6 max-w-2xl">
             Get authentic medicines from verified pharmacies. Fast delivery, secure payment, and expert care—all in one place.
           </p>
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-wrap gap-2 md:gap-4 items-center">
             <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
               <Shield size={18} className="text-yellow-300" />
               <span className="text-sm font-bold">100% Authentic</span>
@@ -959,11 +1184,17 @@ export const Pharmacy: React.FC = memo(() => {
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
-      <div className="bg-white dark:bg-[#0F172A] rounded-2xl p-6 border border-gray-100 dark:border-gray-700/50 shadow-sm">
-        <div className="flex flex-col gap-4">
-          {/* Top Row: Search, Category, Sort, Cart */}
-          <div className="flex flex-col md:flex-row gap-4">
+      {/* Sticky Search Bar (Mobile) */}
+      <div
+        ref={searchRef}
+        className={`${
+          stickySearch ? 'fixed top-0 left-0 right-0 z-30 shadow-lg md:relative md:shadow-none' : ''
+        } bg-white dark:bg-[#0F172A] transition-all duration-300`}
+      >
+        <div className={`bg-white dark:bg-[#0F172A] rounded-2xl ${stickySearch ? 'rounded-none md:rounded-2xl' : 'rounded-2xl'} p-4 md:p-6 border border-gray-100 dark:border-gray-700/50 ${stickySearch ? 'border-l-0 border-r-0 md:border' : 'shadow-sm'} transition-all duration-300`}>
+          <div className="flex flex-col gap-4">
+            {/* Top Row: Search, Category, Sort, Cart */}
+            <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
@@ -1016,43 +1247,92 @@ export const Pharmacy: React.FC = memo(() => {
                         </button>
           </div>
           
-          {/* Price Range Filter */}
-          {medicines.length > 0 && (
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">Price Range:</span>
-                <div className="flex-1 flex items-center gap-3">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={priceRange[0]}
-                    onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                    className="w-24 px-3 py-2 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
-                  />
-                  <span className="text-gray-400">-</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                    className="w-24 px-3 py-2 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400">TZS</span>
+            {/* Quick Filter Pills */}
+            {medicines.length > 0 && (
+              <div className="flex flex-wrap gap-2 pb-2">
+                {[
+                  { id: 'all', label: 'All', value: 'all' },
+                  { id: 'inStock', label: 'In Stock', value: 'inStock' },
+                  { id: 'lowPrice', label: 'Under 10k', value: 'lowPrice' },
+                ].map(filter => (
                   <button
-                    onClick={() => setPriceRange([minPrice, maxPrice])}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    key={filter.id}
+                    onClick={() => {
+                      setQuickFilter(filter.value as any);
+                      if (filter.value === 'lowPrice') {
+                        setPriceRange([0, 10000]);
+                      } else if (filter.value === 'all') {
+                        setPriceRange([minPrice, maxPrice]);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                      quickFilter === filter.value
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
                   >
-                    Reset
+                    {filter.label}
                   </button>
+                ))}
+                <button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${
+                    showAdvancedFilters
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Filter size={14} />
+                  More Filters
+                  {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              </div>
+            )}
+            
+            {/* Advanced Filters (Collapsible) */}
+            {showAdvancedFilters && medicines.length > 0 && (
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Price Range (TZS):</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="Min"
+                        value={priceRange[0] || ''}
+                        onChange={(e) => setPriceRange([Number(e.target.value) || 0, priceRange[1]])}
+                        className="flex-1 px-3 py-2 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="Max"
+                        value={priceRange[1] || ''}
+                        onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value) || maxPrice])}
+                        className="flex-1 px-3 py-2 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+                      />
+                      <button
+                        onClick={() => {
+                          setPriceRange([minPrice, maxPrice]);
+                          setQuickFilter('all');
+                        }}
+                        className="px-4 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg font-bold transition-colors whitespace-nowrap"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Benefits Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-24 md:pb-6">
         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl p-6 border border-emerald-200 dark:border-emerald-800">
           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center mb-4">
             <Award className="text-emerald-600 dark:text-emerald-400" size={24} />
@@ -1101,8 +1381,9 @@ export const Pharmacy: React.FC = memo(() => {
             <p className="text-sm text-gray-400 dark:text-gray-500">Try adjusting your search or filter criteria</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMedicines.map((med, index) => (
+          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-24 md:pb-6">
+            {paginatedMedicines.map((med, index) => (
               <div 
                 key={med.id} 
                 className="bg-white dark:bg-[#0F172A] rounded-3xl p-6 border border-gray-100 dark:border-gray-700/50 hover:shadow-xl transition-all hover:-translate-y-1 group flex flex-col"
@@ -1117,6 +1398,8 @@ export const Pharmacy: React.FC = memo(() => {
                     src={med.image || 'https://placehold.co/400x400?text=Medicine'} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
                     alt={med.name}
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.src = 'https://placehold.co/400x400?text=Medicine';
@@ -1197,34 +1480,113 @@ export const Pharmacy: React.FC = memo(() => {
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleAddToCart(med)}
-                      disabled={!med.inStock}
-                      aria-label={`Add ${med.name} to cart`}
-                      aria-describedby={`medicine-${med.id}-description`}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-xl hover:scale-105 active:scale-95"
-                    >
-                      <Plus size={20} />
-                    </button>
+                    {/* Quick Add to Cart with Quantity Selector */}
+                    {(() => {
+                      const cartItem = cart.find(item => item.id === med.id);
+                      const inCart = cartItem !== undefined;
+                      
+                      return inCart ? (
+                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2">
+                          <button
+                            onClick={() => handleUpdateQuantity(med.id, cartItem.quantity - 1)}
+                            className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors active:scale-95"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="font-bold text-blue-600 dark:text-blue-400 min-w-[2rem] text-center text-sm">
+                            {cartItem.quantity}
+                          </span>
+                          <button
+                            onClick={() => handleUpdateQuantity(med.id, cartItem.quantity + 1)}
+                            disabled={!med.inStock}
+                            className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleAddToCart(med)}
+                          disabled={!med.inStock}
+                          aria-label={`Add ${med.name} to cart`}
+                          aria-describedby={`medicine-${med.id}-description`}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-xl hover:scale-105 active:scale-95 min-w-[44px] min-h-[44px]"
+                        >
+                          <Plus size={20} />
+                        </button>
+                      );
+                    })()}
                   </div>
                     </div>
                 </div>
             ))}
         </div>
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-8 pb-24 md:pb-6">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Previous
+            </button>
+            <div className="flex gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
+        </>
         )}
       </div>
 
-      {/* Shopping Cart Sidebar */}
+      {/* Shopping Cart - Bottom Sheet on Mobile, Sidebar on Desktop */}
       {showCart && (
         <>
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-            onClick={() => setShowCart(false)}
-          />
-          <div className="fixed right-0 top-0 bottom-0 w-full md:w-96 bg-white dark:bg-[#0F172A] shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <ShoppingCart size={24} />
+          {/* Desktop: Sidebar */}
+          <div className="hidden md:block">
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              onClick={() => setShowCart(false)}
+            />
+            <div className="fixed right-0 top-0 bottom-0 w-96 bg-white dark:bg-[#0F172A] shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300 safe-area-inset-bottom">
+            <div className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <ShoppingCart size={20} className="md:w-6 md:h-6" />
                 Shopping Cart ({cart.length})
               </h3>
               <button
@@ -1235,7 +1597,7 @@ export const Pharmacy: React.FC = memo(() => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
               {cart.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <ShoppingCart className="text-gray-300 mb-4" size={64} />
@@ -1293,7 +1655,7 @@ export const Pharmacy: React.FC = memo(() => {
             </div>
 
             {cart.length > 0 && (
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gradient-to-b from-transparent to-blue-50/50 dark:to-blue-900/10">
+              <div className="p-4 md:p-6 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gradient-to-b from-transparent to-blue-50/50 dark:to-blue-900/10 pb-20 md:pb-6 safe-area-inset-bottom">
                 <div className="space-y-2 pb-2">
                   <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
                     <span>Subtotal ({cart.length} {cart.length === 1 ? 'item' : 'items'}):</span>
@@ -1324,8 +1686,126 @@ export const Pharmacy: React.FC = memo(() => {
                 </div>
               </div>
             )}
+            </div>
+          </div>
+          
+          {/* Mobile: Bottom Sheet */}
+          <div className="md:hidden">
+            <BottomSheet
+              isOpen={showCart}
+              onClose={() => setShowCart(false)}
+              title={`Shopping Cart (${cart.length})`}
+              maxHeight="90vh"
+            >
+              <div className="p-4">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <ShoppingCart className="text-gray-300 mb-4" size={64} />
+                    <p className="text-gray-500 dark:text-gray-400 font-bold mb-2">Your cart is empty</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Add medicines to get started</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4 mb-6">
+                      {cart.map(item => (
+                        <div key={item.id} className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 flex gap-4">
+                          <img 
+                            src={item.image || 'https://placehold.co/100x100?text=Medicine'} 
+                            className="w-20 h-20 object-cover rounded-lg"
+                            alt={item.name}
+                            loading="lazy"
+                          />
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-900 dark:text-white mb-1">{item.name}</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                              TZS {item.price.toLocaleString()} each
+                            </p>
+                            <p className="text-emerald-600 dark:text-emerald-400 font-bold mb-3">
+                              TZS {(item.price * item.quantity).toLocaleString()} total
+                            </p>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                className="w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+                                title="Decrease quantity"
+                              >
+                                <Minus size={16} />
+                              </button>
+                              <span className="font-bold text-gray-900 dark:text-white min-w-[2rem] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                className="w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+                                title="Increase quantity"
+                              >
+                                <Plus size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveFromCart(item.id)}
+                                className="ml-auto p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors active:scale-95"
+                                title="Remove from cart"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                          <span>Subtotal ({cart.length} {cart.length === 1 ? 'item' : 'items'}):</span>
+                          <span>TZS {cartTotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                          <span>Delivery:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Free</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-lg pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <span className="font-bold text-gray-900 dark:text-white">Total:</span>
+                        <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                          TZS {cartTotal.toLocaleString()}
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleCheckout}
+                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Lock size={20} />
+                        Secure Checkout
+                        <ArrowRight size={20} />
+                      </button>
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 justify-center">
+                        <Shield size={14} />
+                        <span>Secure payment • Fast delivery • Money-back guarantee</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </BottomSheet>
           </div>
         </>
+      )}
+      
+      {/* Persistent Cart Indicator (Mobile) */}
+      {cart.length > 0 && (
+        <button
+          onClick={() => setShowCart(true)}
+          className="md:hidden fixed bottom-20 right-4 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/30 p-4 transition-all hover:scale-110 active:scale-95"
+          aria-label={`Open cart with ${cart.length} items`}
+        >
+          <div className="relative">
+            <ShoppingCart size={24} />
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+              {cart.length}
+            </span>
+          </div>
+        </button>
       )}
     </div>
   );
