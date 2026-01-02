@@ -3,7 +3,6 @@
  * Can be called from the browser console or admin panel
  */
 
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 
 export const sampleDoctors = [
@@ -103,6 +102,9 @@ export const sampleDoctors = [
  */
 export const addSampleDoctors = async (): Promise<{ success: boolean; message: string; added: number }> => {
   try {
+    // Use dynamic import to ensure Firebase functions are available at runtime
+    const { collection, addDoc, serverTimestamp, getDocs, query, where } = await import('firebase/firestore');
+    
     const doctorsRef = collection(firestore, 'doctors');
     let added = 0;
     let skipped = 0;
@@ -142,8 +144,32 @@ export const addSampleDoctors = async (): Promise<{ success: boolean; message: s
 };
 
 // Make it available globally for console access
+// Only register when explicitly called or when window is ready
+// This avoids issues with module loading in production builds
+const registerGlobally = () => {
+  if (typeof window !== 'undefined') {
+    try {
+      (window as any).addSampleDoctors = addSampleDoctors;
+      if (import.meta.env.DEV) {
+        console.log('💡 Tip: Run addSampleDoctors() in the console to add sample doctors');
+      }
+    } catch (error) {
+      console.warn('Failed to register addSampleDoctors globally:', error);
+    }
+  }
+};
+
+// Register immediately if window is available, otherwise wait for DOM
 if (typeof window !== 'undefined') {
-  (window as any).addSampleDoctors = addSampleDoctors;
-  console.log('💡 Tip: Run addSampleDoctors() in the console to add sample doctors');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', registerGlobally);
+  } else {
+    // Use requestIdleCallback if available, otherwise setTimeout
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(registerGlobally);
+    } else {
+      setTimeout(registerGlobally, 100);
+    }
+  }
 }
 

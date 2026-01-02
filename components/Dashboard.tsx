@@ -93,50 +93,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Load recent orders for patient dashboard
   useEffect(() => {
-    if (user?.role === UserRole.PATIENT && user.id) {
-      if (!firestore) {
-        console.error('Firestore not initialized');
-        setLoadingRecentOrders(false);
-        return;
-      }
-      
+    if (user?.role === UserRole.PATIENT && user.id && firestore) {
       setLoadingRecentOrders(true);
       let unsubscribe: (() => void) | null = null;
       
-      // Use async IIFE to handle dynamic imports if needed
-      (async () => {
+      const setupOrdersListener = async () => {
         try {
-          // Small delay to ensure Firebase modules are loaded in production builds
-          await new Promise(resolve => setTimeout(resolve, 50));
-          
-          // Ensure Firebase functions are available - try dynamic import as fallback
-          let colFn = collection;
+          // Ensure Firebase functions are available - use dynamic import as fallback
+          let collectionFn = collection;
           let queryFn = query;
           let whereFn = where;
           let onSnapshotFn = onSnapshot;
           
-          // If functions are undefined, dynamically import them
-          if (!colFn || !queryFn || !whereFn || !onSnapshotFn) {
-            try {
-              const firestoreModule = await import('firebase/firestore');
-              colFn = firestoreModule.collection;
-              queryFn = firestoreModule.query;
-              whereFn = firestoreModule.where;
-              onSnapshotFn = firestoreModule.onSnapshot;
-            } catch (importError) {
-              console.error('Failed to dynamically import Firebase Firestore:', importError);
-              setLoadingRecentOrders(false);
-              return;
-            }
+          if (typeof collection === 'undefined' || typeof query === 'undefined' || typeof where === 'undefined' || typeof onSnapshot === 'undefined') {
+            // Fallback to dynamic import if static imports failed (production build issue)
+            const firestoreModule = await import('firebase/firestore');
+            collectionFn = firestoreModule.collection;
+            queryFn = firestoreModule.query;
+            whereFn = firestoreModule.where;
+            onSnapshotFn = firestoreModule.onSnapshot;
           }
           
-          if (!colFn || !queryFn || !whereFn || !onSnapshotFn) {
-            console.error('Firebase Firestore functions still not available after import attempt');
-            setLoadingRecentOrders(false);
-            return;
-          }
-          
-          const ordersRef = colFn(firestore, 'orders');
+          const ordersRef = collectionFn(firestore, 'orders');
           const q = queryFn(ordersRef, whereFn('patient_id', '==', user.id));
       
           unsubscribe = onSnapshotFn(q,
@@ -174,9 +152,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           console.error('Error setting up orders listener:', error);
           setLoadingRecentOrders(false);
         }
-      })();
+      };
       
-      // Cleanup function
+      setupOrdersListener();
+      
       return () => {
         if (unsubscribe) {
           try {

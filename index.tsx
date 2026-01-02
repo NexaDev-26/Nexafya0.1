@@ -5,8 +5,8 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Login } from './components/Login';
 import { LandingPage } from './components/LandingPage';
-// Import addSampleDoctors utility to make it available globally
-import './utils/addSampleDoctors';
+// Lazy load addSampleDoctors to avoid side-effect issues in production
+// The function will be registered globally when first imported by a component
 
 // Lazy load heavy components for code splitting
 const CHWDashboard = lazy(() => import('./components/CHWDashboard').then(m => ({ default: m.CHWDashboard })));
@@ -59,6 +59,23 @@ import { DriverProfile } from './components/DriverProfile';
 import { notificationService } from './services/notificationService';
 import { OnboardingTour } from './components/OnboardingTour';
 import { handleError } from './utils/errorHandler';
+// Ensure Firebase is initialized first before any components load
+import { db as firestore, auth } from './lib/firebase';
+// Pre-import Firebase Firestore functions to ensure they're available
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
+// Store references globally to ensure they're available
+if (typeof window !== 'undefined') {
+  (window as any).__firebaseFunctions = {
+    collection,
+    query,
+    where,
+    onSnapshot,
+    firestore,
+    auth
+  };
+}
+
 import './index.css'; 
 
 const MainApp: React.FC = () => {
