@@ -38,7 +38,23 @@ class MPesaService {
     }
 
     if (!this.config) {
-      throw new Error('M-Pesa service not initialized. Please add VITE_MPESA_CONSUMER_KEY and VITE_MPESA_CONSUMER_SECRET to .env');
+      // Try to auto-initialize from environment variables
+      const consumerKey = import.meta.env.VITE_MPESA_CONSUMER_KEY;
+      const consumerSecret = import.meta.env.VITE_MPESA_CONSUMER_SECRET;
+      const shortCode = import.meta.env.VITE_MPESA_SHORTCODE;
+      const passKey = import.meta.env.VITE_MPESA_PASSKEY;
+
+      if (consumerKey && consumerSecret && shortCode && passKey) {
+        this.config = {
+          consumerKey,
+          consumerSecret,
+          shortCode,
+          passKey,
+          environment: (import.meta.env.VITE_MPESA_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
+        };
+      } else {
+        throw new Error('M-Pesa service is not configured. Please add M-Pesa credentials to environment variables.');
+      }
     }
 
     try {

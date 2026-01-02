@@ -29,9 +29,10 @@ class SMSService {
 
   /**
    * Auto-initialize from environment variables
+   * Returns true if initialized, false if credentials not available
    */
-  private async autoInitialize(): Promise<void> {
-    if (this.config) return;
+  private async autoInitialize(): Promise<boolean> {
+    if (this.config) return true;
 
     const twilioAccountSid = import.meta.env.VITE_TWILIO_ACCOUNT_SID;
     const twilioAuthToken = import.meta.env.VITE_TWILIO_AUTH_TOKEN;
@@ -49,6 +50,7 @@ class SMSService {
           phoneNumber: twilioPhoneNumber,
         },
       };
+      return true;
     } else if (atApiKey && atUsername) {
       this.config = {
         provider: 'africastalking',
@@ -57,8 +59,11 @@ class SMSService {
           username: atUsername,
         },
       };
+      return true;
     } else {
-      throw new Error('SMS credentials not found. Please add Twilio or AfricasTalking credentials to .env');
+      // SMS service is optional - don't throw error, just return false
+      console.warn('SMS service not configured. SMS features will be disabled.');
+      return false;
     }
   }
 
@@ -168,12 +173,12 @@ class SMSService {
    */
   async sendSMS(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.autoInitialize();
+      const initialized = await this.autoInitialize();
 
-      if (!this.config) {
+      if (!initialized || !this.config) {
         return {
           success: false,
-          error: 'SMS service not configured',
+          error: 'SMS service is not configured. Please add SMS credentials to environment variables.',
         };
       }
 

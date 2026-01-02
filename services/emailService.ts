@@ -42,9 +42,10 @@ class EmailService {
 
   /**
    * Auto-initialize from environment variables
+   * Returns true if initialized, false if credentials not available
    */
-  private async autoInitialize(): Promise<void> {
-    if (this.config) return;
+  private async autoInitialize(): Promise<boolean> {
+    if (this.config) return true;
 
     const sendgridApiKey = import.meta.env.VITE_SENDGRID_API_KEY;
     const sesAccessKey = import.meta.env.VITE_AWS_SES_ACCESS_KEY;
@@ -58,6 +59,7 @@ class EmailService {
           apiKey: sendgridApiKey,
         },
       };
+      return true;
     } else if (sesAccessKey && sesSecretKey && sesRegion) {
       this.config = {
         provider: 'ses',
@@ -67,8 +69,11 @@ class EmailService {
           region: sesRegion,
         },
       };
+      return true;
     } else {
-      throw new Error('Email credentials not found. Please add SendGrid or AWS SES credentials to .env');
+      // Email service is optional - don't throw error, just return false
+      console.warn('Email service not configured. Email features will be disabled.');
+      return false;
     }
   }
 
@@ -161,12 +166,12 @@ class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.autoInitialize();
+      const initialized = await this.autoInitialize();
 
-      if (!this.config) {
+      if (!initialized || !this.config) {
         return {
           success: false,
-          error: 'Email service not configured',
+          error: 'Email service is not configured. Please add email credentials to environment variables.',
         };
       }
 
