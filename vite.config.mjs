@@ -9,14 +9,24 @@ export default defineConfig({
     strictPort: false, // Try next available port if 5174 is taken
     // No proxy needed - Firebase is client-side only
   },
+  // Exclude mobile folder from build
+  publicDir: 'public',
   build: {
-    // Optimize chunk splitting
+    // Exclude mobile folder and other non-web files
     rollupOptions: {
+      external: (id) => {
+        // Exclude React Native imports
+        if (id.includes('react-native') || id.includes('@expo/vector-icons')) {
+          return true;
+        }
+        return false;
+      },
       output: {
         manualChunks: (id) => {
-          // Keep Firebase together to avoid async loading issues
+          // DO NOT chunk Firebase separately - keep it in main bundle for synchronous loading
+          // Firebase must load before components try to use it
           if (id.includes('firebase')) {
-            return 'firebase-vendor';
+            return undefined; // Keep Firebase in main bundle
           }
           if (id.includes('node_modules')) {
             if (id.includes('react') || id.includes('react-dom')) {
@@ -48,8 +58,13 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'leaflet', 'lodash-es', 'zod'],
+    exclude: [], // Don't exclude Firebase
     esbuildOptions: {
       target: 'esnext',
     },
+  },
+  // Ensure Firebase is treated as ESM and not split
+  resolve: {
+    dedupe: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
   },
 })
