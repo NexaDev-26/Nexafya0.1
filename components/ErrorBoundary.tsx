@@ -87,15 +87,15 @@ export class ErrorBoundary extends Component<Props, State> {
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
 
-            {import.meta.env.DEV && this.state.error && (
+            {this.state.error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg text-left">
-                <p className="text-sm font-mono text-red-800 dark:text-red-200 break-all mb-2">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">
                   {this.state.error.message || this.state.error.toString()}
                 </p>
-                {this.state.errorInfo && (
+                {import.meta.env.DEV && this.state.errorInfo && (
                   <details className="mt-2">
                     <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer hover:underline">
-                      Error Details (Dev Only)
+                      Technical Details (Dev Only)
                     </summary>
                     <pre className="text-xs text-red-700 dark:text-red-300 mt-2 overflow-auto max-h-64 bg-red-100 dark:bg-red-900/20 p-3 rounded">
                       {this.state.error.stack}
@@ -103,6 +103,11 @@ export class ErrorBoundary extends Component<Props, State> {
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>
+                )}
+                {!import.meta.env.DEV && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    If this problem persists, please contact support with the error message above.
+                  </p>
                 )}
               </div>
             )}

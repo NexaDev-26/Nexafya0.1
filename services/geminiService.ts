@@ -2,16 +2,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialization - API key should be set in environment or config
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBcB8-7RTl9IjJDpffY_8Dt13_offWNYOI';
+// Only use fallback in development, not in production
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (import.meta.env.DEV ? 'AIzaSyBcB8-7RTl9IjJDpffY_8Dt13_offWNYOI' : '');
 
 // Initialize AI client
 let ai: GoogleGenAI | null = null;
 try {
-  if (apiKey && apiKey.trim() !== '') {
+  if (apiKey && apiKey.trim() !== '' && apiKey.trim() !== 'undefined') {
     ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-    console.log('✅ Gemini AI initialized successfully');
+    if (import.meta.env.DEV) {
+      console.log('✅ Gemini AI initialized successfully');
+    }
   } else {
-    console.warn('⚠️ Gemini API key not found');
+    if (import.meta.env.DEV) {
+      console.warn('⚠️ Gemini API key not found - AI features will be disabled');
+    }
   }
 } catch (error) {
   console.error('❌ Failed to initialize Gemini AI:', error);
