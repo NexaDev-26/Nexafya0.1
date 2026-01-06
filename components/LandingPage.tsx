@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Play, ArrowRight, Activity, Stethoscope, Pill, MessageSquare, Truck, Users, Building2, ShieldCheck, Phone, Globe, Menu, X, CheckCircle, Star, Zap, DollarSign, MapPin, Bike, BarChart2, LayoutDashboard, HeartPulse, CreditCard, FileText, Calendar, Video, Moon, Sun } from 'lucide-react';
+import { ArrowRight, Activity, Stethoscope, MessageSquare, Truck, Users, Building2, ShieldCheck, Phone, Globe, Menu, X, CheckCircle, Zap, DollarSign, LayoutDashboard, HeartPulse, CreditCard, FileText, Calendar, Video, Moon, Sun } from 'lucide-react';
 import { db } from '../services/db';
 import { Partner, SubscriptionPackage } from '../types';
 import { useDarkMode } from '../contexts/DarkModeContext';
@@ -29,11 +29,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     
     // Fetch Dynamic Data
     const loadContent = async () => {
-        const prts = await db.getPartners();
-        setPartners(prts);
-        const pkgs = await db.getPackages();
-        setDoctorPackages([]); // Doctors use trust tiers, not subscriptions
-        setPharmacyPackages(pkgs.filter(p => p.role === 'PHARMACY'));
+        try {
+            const prts = await db.getPartners();
+            setPartners(prts || []);
+        } catch (error) {
+            console.error('Error loading partners:', error);
+            setPartners([]);
+        }
+        
+        try {
+            const pkgs = await db.getPackages();
+            setDoctorPackages([]); // Doctors use trust tiers, not subscriptions
+            // Safely filter pharmacy packages
+            const pharmacyPkgs = Array.isArray(pkgs) 
+                ? pkgs.filter(p => p && (p.role === 'PHARMACY' || p.role === 'pharmacy'))
+                : [];
+            setPharmacyPackages(pharmacyPkgs);
+        } catch (error) {
+            console.error('Error loading packages:', error);
+            setDoctorPackages([]);
+            setPharmacyPackages([]);
+        }
     };
     loadContent();
 
@@ -79,23 +95,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
          <div className="border-y border-gray-100 dark:border-gray-700/50 bg-white dark:bg-[#0A0F1C] py-16 mb-24 transition-colors duration-300">
              <div className="max-w-[1280px] mx-auto px-6">
                  <div className="text-center mb-12"><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Trusted by healthcare partners across Tanzania</p></div>
-                 <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
-                     {partners.map((partner) => (
-                         <div key={partner.id} className="flex flex-col items-center gap-4 group cursor-default">
-                             <div className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white dark:bg-[#0F172A] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50 group-hover:shadow-md transition-shadow">
-                                 <img src={partner.logoUrl} alt={partner.name} className="max-w-full max-h-full object-contain dark:invert" onError={(e) => {
-                                     const target = e.target as HTMLImageElement;
-                                     target.style.display = 'none';
-                                     const parent = target.parentElement;
-                                     if (parent) {
-                                         parent.innerHTML = `<div class="text-2xl font-bold text-teal-600 dark:text-teal-400">${partner.name.charAt(0)}</div>`;
-                                     }
-                                 }} />
+                 {partners.length > 0 ? (
+                     <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
+                         {partners.filter(p => p && p.id).map((partner) => (
+                             <div key={partner.id} className="flex flex-col items-center gap-4 group cursor-default">
+                                 <div className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white dark:bg-[#0F172A] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50 group-hover:shadow-md transition-shadow">
+                                     {partner.logoUrl ? (
+                                         <img 
+                                             src={partner.logoUrl} 
+                                             alt={partner.name || 'Partner'} 
+                                             className="max-w-full max-h-full object-contain dark:invert" 
+                                             onError={(e) => {
+                                                 const target = e.target as HTMLImageElement;
+                                                 target.style.display = 'none';
+                                                 const parent = target.parentElement;
+                                                 if (parent && partner.name && !parent.querySelector('.logo-fallback')) {
+                                                     const fallback = document.createElement('div');
+                                                     fallback.className = 'logo-fallback text-2xl font-bold text-teal-600 dark:text-teal-400';
+                                                     fallback.textContent = partner.name.charAt(0).toUpperCase();
+                                                     parent.appendChild(fallback);
+                                                 }
+                                             }} 
+                                         />
+                                     ) : (
+                                         <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                                             {partner.name ? partner.name.charAt(0).toUpperCase() : 'P'}
+                                         </div>
+                                     )}
+                                 </div>
+                                 <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{partner.name || 'Partner'}</span>
                              </div>
-                             <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{partner.name}</span>
-                         </div>
-                     ))}
-                 </div>
+                         ))}
+                     </div>
+                 ) : (
+                     <div className="grid grid-cols-2 md:grid-cols-5 gap-8 items-center justify-items-center">
+                         {/* Default partners when none are loaded */}
+                         {[
+                             { name: 'Tanzania Medical Council', initial: 'TMC' },
+                             { name: 'Muhimbili National Hospital', initial: 'MNH' },
+                             { name: 'Keko Pharma', initial: 'KP' },
+                             { name: 'Ministry of Health', initial: 'MoH' },
+                             { name: 'NHIF', initial: 'NHIF' }
+                         ].map((defaultPartner, index) => (
+                             <div key={`default-${index}`} className="flex flex-col items-center gap-4 group cursor-default">
+                                 <div className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white dark:bg-[#0F172A] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50 group-hover:shadow-md transition-shadow">
+                                     <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{defaultPartner.initial}</div>
+                                 </div>
+                                 <span className="text-sm font-bold text-gray-600 dark:text-gray-300 text-center">{defaultPartner.name}</span>
+                             </div>
+                         ))}
+                     </div>
+                 )}
              </div>
          </div>
 
@@ -161,9 +211,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                           
                           <div className="mt-8 flex items-center justify-center lg:justify-start gap-6">
                               <div className="flex -space-x-4">
-                                  <img className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" src="https://i.pravatar.cc/100?img=1" alt="User" />
-                                  <img className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" src="https://i.pravatar.cc/100?img=5" alt="User" />
-                                  <img className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" src="https://i.pravatar.cc/100?img=8" alt="User" />
+                                  <img 
+                                      className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" 
+                                      src="https://i.pravatar.cc/100?img=1" 
+                                      alt="User" 
+                                      onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                      }}
+                                  />
+                                  <img 
+                                      className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" 
+                                      src="https://i.pravatar.cc/100?img=5" 
+                                      alt="User" 
+                                      onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                      }}
+                                  />
+                                  <img 
+                                      className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700" 
+                                      src="https://i.pravatar.cc/100?img=8" 
+                                      alt="User" 
+                                      onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                      }}
+                                  />
                                   <div className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700 bg-gray-100 dark:bg-[#0F172A] flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">+2k</div>
                               </div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Trusted by families in Dar es Salaam</p>
@@ -177,6 +251,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                   src="https://images.unsplash.com/photo-1631217868269-dfc1c5c05b97?auto=format&fit=crop&q=80" 
                                   alt="East African Doctor and Patient" 
                                   className="w-full h-[500px] object-cover"
+                                  onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.src = 'https://via.placeholder.com/800x500/0EA5E9/ffffff?text=Doctor+and+Patient';
+                                  }}
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                               <div className="absolute bottom-6 left-6 text-white">
@@ -307,30 +385,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               <h2 className="text-3xl font-bold text-center mb-4 text-gray-900 dark:text-white">Simple, Transparent Pricing</h2>
               <p className="text-center text-gray-500 dark:text-gray-300 mb-12">Choose the plan that fits your practice size.</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  {doctorPackages.map((pkg, i) => (
-                      <div key={i} className={`rounded-3xl p-8 border relative transition-colors duration-300 ${pkg.isPopular ? 'bg-[#0F172A] dark:bg-[#1E293B] text-white border-gray-700/50 dark:border-gray-600/50 shadow-xl scale-105' : 'bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white border-gray-200 dark:border-gray-700/50'}`}>
-                          {pkg.isPopular && <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold px-4 py-1 rounded-bl-xl rounded-tr-xl uppercase tracking-wider">Most Popular</div>}
-                          <h3 className="font-bold text-xl mb-2">{pkg.name}</h3>
-                          <div className="flex items-baseline gap-1 mb-4">
-                              {pkg.currency && <span className="text-sm font-bold opacity-70">{pkg.currency}</span>}
-                              <span className="text-4xl font-bold">{pkg.price}</span>
-                              <span className="text-sm opacity-70">{pkg.period}</span>
+              {doctorPackages.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {doctorPackages.map((pkg, i) => (
+                          <div key={i} className={`rounded-3xl p-8 border relative transition-colors duration-300 ${pkg.isPopular ? 'bg-[#0F172A] dark:bg-[#1E293B] text-white border-gray-700/50 dark:border-gray-600/50 shadow-xl scale-105' : 'bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white border-gray-200 dark:border-gray-700/50'}`}>
+                              {pkg.isPopular && <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold px-4 py-1 rounded-bl-xl rounded-tr-xl uppercase tracking-wider">Most Popular</div>}
+                              <h3 className="font-bold text-xl mb-2">{pkg.name || 'Package'}</h3>
+                              <div className="flex items-baseline gap-1 mb-4">
+                                  {pkg.currency && <span className="text-sm font-bold opacity-70">{pkg.currency}</span>}
+                                  <span className="text-4xl font-bold">{pkg.price || '0'}</span>
+                                  <span className="text-sm opacity-70">{pkg.period || '/month'}</span>
+                              </div>
+                              <p className={`text-sm mb-8 ${pkg.isPopular ? 'text-gray-400 dark:text-gray-300' : 'text-gray-500 dark:text-gray-300'}`}>{pkg.description || ''}</p>
+                              <ul className="space-y-4 mb-8">
+                                  {Array.isArray(pkg.features) && pkg.features.map((feat, j) => (
+                                      <li key={j} className="flex items-center gap-3 text-sm font-medium">
+                                          <CheckCircle size={18} className={pkg.isPopular ? 'text-blue-400' : 'text-blue-600 dark:text-blue-400'} /> {feat}
+                                      </li>
+                                  ))}
+                              </ul>
+                              <button onClick={onGetStarted} className={`w-full py-3 rounded-xl font-bold transition-all ${pkg.isPopular ? 'bg-white dark:bg-white text-black dark:text-gray-900 hover:bg-gray-100' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
+                                  Get Started
+                              </button>
                           </div>
-                          <p className={`text-sm mb-8 ${pkg.isPopular ? 'text-gray-400 dark:text-gray-300' : 'text-gray-500 dark:text-gray-300'}`}>{pkg.description}</p>
-                          <ul className="space-y-4 mb-8">
-                              {pkg.features.map((feat, j) => (
-                                  <li key={j} className="flex items-center gap-3 text-sm font-medium">
-                                      <CheckCircle size={18} className={pkg.isPopular ? 'text-blue-400' : 'text-blue-600 dark:text-blue-400'} /> {feat}
-                                  </li>
-                              ))}
-                          </ul>
-                          <button onClick={onGetStarted} className={`w-full py-3 rounded-xl font-bold transition-all ${pkg.isPopular ? 'bg-white dark:bg-white text-black dark:text-gray-900 hover:bg-gray-100' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'}`}>
-                              Get Started
-                          </button>
-                      </div>
-                  ))}
-              </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                      <p>No subscription packages available at this time.</p>
+                      <p className="text-sm mt-2">Doctors use trust tiers instead of subscription packages.</p>
+                  </div>
+              )}
           </div>
       </div>
   );
@@ -371,36 +456,51 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                       </div>
                   </div>
                   <div className="md:w-1/2">
-                      <img src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&q=80" alt="Pharmacy Dashboard" className="rounded-3xl shadow-2xl" />
+                      <img 
+                          src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&q=80" 
+                          alt="Pharmacy Dashboard" 
+                          className="rounded-3xl shadow-2xl w-full h-auto"
+                          onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://via.placeholder.com/600x400/10B981/ffffff?text=Pharmacy+Dashboard';
+                          }}
+                      />
                   </div>
               </div>
           </div>
 
           <div className="max-w-[900px] mx-auto px-6">
               <h2 className="text-3xl font-bold text-center mb-4 text-gray-900 dark:text-white">Partnership Packages</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
-                  {pharmacyPackages.map((pkg, i) => (
-                      <div key={i} className={`rounded-3xl p-8 border transition-colors duration-300 ${pkg.isPopular ? 'bg-emerald-900 dark:bg-emerald-800/50 text-white border-emerald-900 dark:border-emerald-700/50 shadow-xl' : 'bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white border-gray-200 dark:border-gray-700/50'}`}>
-                          <h3 className="font-bold text-xl mb-2">{pkg.name}</h3>
-                          <div className="flex items-baseline gap-1 mb-4">
-                              {pkg.currency && <span className="text-sm font-bold opacity-70">{pkg.currency}</span>}
-                              <span className="text-4xl font-bold">{pkg.price}</span>
-                              <span className="text-sm opacity-70">{pkg.period}</span>
+              {pharmacyPackages.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
+                      {pharmacyPackages.map((pkg, i) => (
+                          <div key={i} className={`rounded-3xl p-8 border transition-colors duration-300 ${pkg.isPopular ? 'bg-emerald-900 dark:bg-emerald-800/50 text-white border-emerald-900 dark:border-emerald-700/50 shadow-xl' : 'bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white border-gray-200 dark:border-gray-700/50'}`}>
+                              <h3 className="font-bold text-xl mb-2">{pkg.name || 'Package'}</h3>
+                              <div className="flex items-baseline gap-1 mb-4">
+                                  {pkg.currency && <span className="text-sm font-bold opacity-70">{pkg.currency}</span>}
+                                  <span className="text-4xl font-bold">{pkg.price || '0'}</span>
+                                  <span className="text-sm opacity-70">{pkg.period || '/month'}</span>
+                              </div>
+                              <p className={`text-sm mb-8 ${pkg.isPopular ? 'text-gray-300' : 'text-gray-500 dark:text-gray-300'}`}>{pkg.description || ''}</p>
+                              <ul className="space-y-4 mb-8">
+                                  {Array.isArray(pkg.features) && pkg.features.map((feat, j) => (
+                                      <li key={j} className="flex items-center gap-3 text-sm font-medium">
+                                          <CheckCircle size={18} className={pkg.isPopular ? 'text-emerald-400' : 'text-emerald-600 dark:text-emerald-400'} /> {feat}
+                                      </li>
+                                  ))}
+                              </ul>
+                              <button onClick={onGetStarted} className={`w-full py-3 rounded-xl font-bold transition-all ${pkg.isPopular ? 'bg-white dark:bg-white text-black dark:text-gray-900 hover:bg-gray-100' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'}`}>
+                                  Get Started
+                              </button>
                           </div>
-                          <p className={`text-sm mb-8 ${pkg.isPopular ? 'text-gray-300' : 'text-gray-500 dark:text-gray-300'}`}>{pkg.description}</p>
-                          <ul className="space-y-4 mb-8">
-                              {pkg.features.map((feat, j) => (
-                                  <li key={j} className="flex items-center gap-3 text-sm font-medium">
-                                      <CheckCircle size={18} className={pkg.isPopular ? 'text-emerald-400' : 'text-emerald-600 dark:text-emerald-400'} /> {feat}
-                                  </li>
-                              ))}
-                          </ul>
-                          <button onClick={onGetStarted} className={`w-full py-3 rounded-xl font-bold transition-all ${pkg.isPopular ? 'bg-white dark:bg-white text-black dark:text-gray-900 hover:bg-gray-100' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'}`}>
-                              Get Started
-                          </button>
-                      </div>
-                  ))}
-              </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400 mt-12">
+                      <p>No pharmacy packages available at this time.</p>
+                      <p className="text-sm mt-2">Please check back later or contact us for partnership opportunities.</p>
+                  </div>
+              )}
           </div>
       </div>
   );
@@ -426,7 +526,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               </div>
               <div className="md:w-1/2">
                   <div className="bg-gray-100 dark:bg-[#0F172A] rounded-[3rem] p-8 relative transition-colors duration-300">
-                      <img src="https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&q=80" alt="Courier" className="rounded-3xl shadow-xl w-full" />
+                      <img 
+                          src="https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&q=80" 
+                          alt="Courier" 
+                          className="rounded-3xl shadow-xl w-full h-auto" 
+                          onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://via.placeholder.com/600x400/EA580C/ffffff?text=Courier+Delivery';
+                          }}
+                      />
                       <div className="absolute -bottom-6 -left-6 bg-white dark:bg-[#0F172A] p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700/50 flex gap-4 items-center transition-colors duration-300">
                           <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full text-green-600 dark:text-green-400"><DollarSign /></div>
                           <div>

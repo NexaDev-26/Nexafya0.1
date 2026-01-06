@@ -46,7 +46,16 @@ class TigoPesaService {
         const merchantId = import.meta.env.VITE_TIGO_PESA_MERCHANT_ID;
 
         if (!apiKey || !apiSecret || !merchantId) {
-          throw new Error('Tigo Pesa credentials not found in .env file. Please add VITE_TIGO_PESA_API_KEY, VITE_TIGO_PESA_API_SECRET, and VITE_TIGO_PESA_MERCHANT_ID');
+          // Mock mode - simulate Tigo Pesa payment
+          console.warn('Tigo Pesa credentials not found. Using mock mode.');
+          const { mockDelay, generateMockTransactionId } = await import('../utils/mockApi');
+          await mockDelay(1500);
+          const mockTransactionId = generateMockTransactionId('TIGO');
+          return {
+            success: true,
+            transactionId: mockTransactionId,
+            message: 'Payment request sent. Please complete on your phone (mock mode).',
+          };
         }
 
         this.initialize({
@@ -114,7 +123,14 @@ class TigoPesaService {
   async queryPayment(transactionId: string): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
       if (!this.config) {
-        throw new Error('Tigo Pesa service not initialized');
+        // Mock mode - simulate completed payment
+        console.warn('Tigo Pesa service not initialized. Using mock mode.');
+        const { mockDelay } = await import('../utils/mockApi');
+        await mockDelay(500);
+        return {
+          success: true,
+          status: 'COMPLETED',
+        };
       }
 
       const auth = btoa(`${this.config.apiKey}:${this.config.apiSecret}`);

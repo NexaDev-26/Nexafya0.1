@@ -30,7 +30,12 @@ export const isAIAvailable = () => {
 // For Article Generation (Text only)
 export const checkSymptoms = async (prompt: string, language: 'en' | 'sw' = 'en'): Promise<string> => {
   if (!ai) {
-    return "AI service is not configured. Please add VITE_GEMINI_API_KEY to your environment variables.";
+    // Mock response when AI is not configured
+    console.warn('Gemini AI not configured. Using mock response.');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return language === 'sw' 
+      ? "Huduma ya AI haijasanidiwa. Tafadhali ongeza VITE_GEMINI_API_KEY kwenye mazingira yako. Kwa sasa, tafadhali wasiliana na daktari kwa usaidizi zaidi."
+      : "AI service is not configured. Please add VITE_GEMINI_API_KEY to your environment variables. For now, please consult with a doctor for further assistance.";
   }
   
   const systemInstruction = `
@@ -71,11 +76,19 @@ export interface SymptomAssessment {
 
 export const assessSymptoms = async (history: {role: string, text: string}[], language: 'en' | 'sw' = 'en'): Promise<SymptomAssessment> => {
   if (!ai) {
+    // Mock assessment when AI is not configured
+    console.warn('Gemini AI not configured. Using mock assessment.');
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const lastMessage = history[history.length - 1]?.text || '';
     return {
-      reply: "AI symptom checker is not available. Please consult with a healthcare provider.",
+      reply: language === 'sw'
+        ? `Asante kwa kutoa maelezo yako. Kwa sasa, huduma ya AI haijasanidiwa. Tafadhali wasiliana na mtaalamu wa afya kwa tathmini kamili.`
+        : `Thank you for providing your symptoms. Currently, AI service is not configured. Please consult with a healthcare provider for a complete assessment.`,
       careLevel: 'Doctor',
-      title: "Consult a Doctor",
-      action: "Schedule an appointment with a healthcare professional."
+      title: language === 'sw' ? "Wasiliana na Daktari" : "Consult a Doctor",
+      action: language === 'sw' 
+        ? "Panga miadi na mtaalamu wa afya."
+        : "Schedule an appointment with a healthcare professional."
     };
   }
   

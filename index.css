@@ -152,3 +152,26 @@ html {
   }
 }
 
+/* Safe area support for mobile devices with notches/home indicators */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.safe-area-inset-left {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+.safe-area-inset-right {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* Mobile bottom navigation spacing - ensures content isn't covered */
+@media (max-width: 768px) {
+  .mobile-content-padding {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}

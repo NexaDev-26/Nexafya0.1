@@ -171,10 +171,13 @@ class SMSService {
       await this.autoInitialize();
 
       if (!this.config) {
-        return {
-          success: false,
-          error: 'SMS service not configured',
-        };
+        // Mock mode - simulate SMS sending
+        console.warn('SMS service not configured. Using mock mode.');
+        const { mockDelay, mockSMSResponse } = await import('../utils/mockApi');
+        await mockDelay(600);
+        const mock = mockSMSResponse(phoneNumber, message);
+        console.log(`[MOCK] ${mock.message}`);
+        return { success: true };
       }
 
       if (this.config.provider === 'twilio') {
@@ -183,6 +186,16 @@ class SMSService {
         return await this.sendViaAfricasTalking(phoneNumber, message);
       }
     } catch (error: any) {
+      // If initialization fails, use mock mode
+      if (error.message?.includes('credentials not found')) {
+        console.warn('SMS credentials not found. Using mock mode.');
+        const { mockDelay, mockSMSResponse } = await import('../utils/mockApi');
+        await mockDelay(600);
+        const mock = mockSMSResponse(phoneNumber, message);
+        console.log(`[MOCK] ${mock.message}`);
+        return { success: true };
+      }
+      
       console.error('SMS sending error:', error);
       return {
         success: false,

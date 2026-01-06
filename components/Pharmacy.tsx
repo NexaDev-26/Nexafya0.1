@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { debounce } from 'lodash-es';
 import { Medicine, CartItem, UserRole, PharmacyBranch, SalesRecord, InventoryItem } from '../types';
-import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon, Menu } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -151,8 +151,8 @@ export const Pharmacy: React.FC = memo(() => {
 
   // Order Details Modal - defined early to avoid hoisting issues
   const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in safe-area-inset-bottom">
+      <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl relative mb-16 md:mb-0 pb-20 md:pb-6">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500">
           <X size={24} />
         </button>
@@ -463,46 +463,93 @@ export const Pharmacy: React.FC = memo(() => {
       }
   };
 
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   if (user?.role === UserRole.PHARMACY) {
       return (
           <>
               {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
               <PullToRefresh onRefresh={handlePharmacyRefresh} disabled={loadingOrders}>
-          <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-6 animate-in fade-in duration-500">
+          <div className="flex flex-col md:flex-row h-full md:h-[calc(100vh-140px)] gap-4 md:gap-6 animate-in fade-in duration-500">
               
-              {/* Sidebar */}
-              <div className="w-full md:w-64 bg-white dark:bg-[#0F172A] rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 p-4">
-                  <div className="p-4 mb-4 border-b border-gray-100 dark:border-gray-700/50">
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">My Pharmacy</h2>
-                  </div>
-                  {[
-                      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                      { id: 'orders', label: 'Orders', icon: Package },
-                      { id: 'pos', label: 'POS', icon: ShoppingCart },
-                      { id: 'inventory', label: 'Inventory', icon: Package },
-                      { id: 'stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
-                      { id: 'purchases', label: 'Purchases', icon: Truck },
-                      { id: 'suppliers', label: 'Suppliers', icon: Building2 },
-                      { id: 'sales', label: 'Sales', icon: BarChart2 },
-                      { id: 'invoices', label: 'Invoices', icon: FileText },
-                      { id: 'reports', label: 'Reports', icon: BarChart2 },
-                      { id: 'batch-expiry', label: 'Batch/Expiry', icon: Calendar },
-                      { id: 'unit-converter', label: 'Unit Converter', icon: ArrowRight },
-                      { id: 'prescriptions', label: 'Prescriptions', icon: QrCode },
-                      { id: 'branches', label: 'Branches', icon: Store },
-                  ].map(item => (
-                      <button 
-                          key={item.id} 
-                          onClick={() => setMgmtTab(item.id as any)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-colors ${mgmtTab === item.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+              {/* Mobile Sidebar Toggle Button - Better Positioning */}
+              <button
+                onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+                className="md:hidden fixed top-20 left-4 z-40 p-3 bg-white dark:bg-[#0F172A] rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-110"
+                aria-label="Toggle sidebar"
+              >
+                <Menu size={20} />
+              </button>
+
+              {/* Mobile Sidebar Overlay - Enhanced */}
+              {isMobileSidebarOpen && (
+                <div 
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                />
+              )}
+              
+              {/* Sidebar - Enhanced Mobile Design */}
+              <div className={`w-72 md:w-64 bg-white dark:bg-[#0F172A] rounded-2xl md:rounded-2xl shadow-xl md:shadow-sm border border-gray-100 dark:border-gray-700/50 p-4 md:p-4 mb-4 md:mb-0 fixed md:static top-0 left-0 h-full md:h-auto z-50 md:z-auto transform transition-transform duration-300 ease-in-out ${
+                isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+              } overflow-y-auto pb-20 md:pb-4`}>
+                  {/* Sidebar Header */}
+                  <div className="p-4 mb-4 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">My Pharmacy</h2>
+                      <button
+                        onClick={() => setIsMobileSidebarOpen(false)}
+                        className="md:hidden p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        aria-label="Close sidebar"
                       >
-                          <item.icon size={18} /> {item.label}
+                        <X size={18} className="text-gray-500" />
                       </button>
-                  ))}
+                  </div>
+                  
+                  {/* Navigation Items - Enhanced */}
+                  <nav className="space-y-1">
+                    {[
+                        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                        { id: 'orders', label: 'Orders', icon: Package },
+                        { id: 'pos', label: 'POS', icon: ShoppingCart },
+                        { id: 'inventory', label: 'Inventory', icon: Package },
+                        { id: 'stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
+                        { id: 'purchases', label: 'Purchases', icon: Truck },
+                        { id: 'suppliers', label: 'Suppliers', icon: Building2 },
+                        { id: 'sales', label: 'Sales', icon: BarChart2 },
+                        { id: 'invoices', label: 'Invoices', icon: FileText },
+                        { id: 'reports', label: 'Reports', icon: BarChart2 },
+                        { id: 'batch-expiry', label: 'Batch/Expiry', icon: Calendar },
+                        { id: 'unit-converter', label: 'Unit Converter', icon: ArrowRight },
+                        { id: 'prescriptions', label: 'Prescriptions', icon: QrCode },
+                        { id: 'branches', label: 'Branches', icon: Store },
+                    ].map(item => {
+                      const isActive = mgmtTab === item.id;
+                      return (
+                        <button 
+                            key={item.id} 
+                            onClick={() => {
+                              setMgmtTab(item.id as any);
+                              setIsMobileSidebarOpen(false); // Close mobile sidebar on selection
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${
+                              isActive 
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md shadow-blue-600/30' 
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                            }`}
+                        >
+                            <item.icon size={18} className={isActive ? 'scale-110' : ''} />
+                            <span className="flex-1 text-left">{item.label}</span>
+                            {isActive && (
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            )}
+                        </button>
+                      );
+                    })}
+                  </nav>
               </div>
 
-              {/* Main Content */}
-              <div className="flex-1 bg-white dark:bg-[#0F172A] rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden flex flex-col p-6">
+              {/* Main Content - Enhanced Mobile with Safe Area */}
+              <div className="flex-1 bg-white dark:bg-[#0F172A] rounded-2xl md:rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden flex flex-col p-4 md:p-6 min-w-0" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}>
                   
                   {/* INVENTORY TAB */}
                   {mgmtTab === 'inventory' && (
@@ -583,26 +630,26 @@ export const Pharmacy: React.FC = memo(() => {
 
                   {/* PRESCRIPTIONS TAB */}
                   {mgmtTab === 'prescriptions' && (
-                      <div className="space-y-8">
-                          <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-display">Prescription Fulfillment</h2>
+                      <div className="space-y-6 md:space-y-8 pb-24 md:pb-6">
+                          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white font-display">Prescription Fulfillment</h2>
                           
-                          <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-8 border-2 border-dashed border-gray-300 dark:border-gray-700/50 flex flex-col items-center justify-center text-center">
+                          <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-4 md:p-8 border-2 border-dashed border-gray-300 dark:border-gray-700/50 flex flex-col items-center justify-center text-center">
                               <QrCode size={48} className="text-gray-400 mb-4" />
                               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Scan Patient QR Code</h3>
                               <p className="text-sm text-gray-500 mb-6 max-w-xs">Enter the code found on the patient's app to view and dispense medicines.</p>
                               
-                              <div className="flex gap-2 w-full max-w-md">
+                              <div className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
                                   <input 
                                       type="text" 
                                       value={qrInput}
                                       onChange={(e) => setQrInput(e.target.value.toUpperCase())}
                                       placeholder="e.g. RX-17382..."
-                                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-[#0A1B2E] text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-[#0A1B2E] text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase text-sm md:text-base"
                                   />
                                   <button 
                                     onClick={handleVerifyQR} 
                                     disabled={isVerifying}
-                                    className="bg-blue-600 text-white px-6 rounded-xl font-bold disabled:opacity-50"
+                                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50 hover:bg-blue-700 transition-colors whitespace-nowrap"
                                   >
                                       {isVerifying ? 'Checking...' : 'Verify'}
                                   </button>
@@ -610,34 +657,34 @@ export const Pharmacy: React.FC = memo(() => {
                           </div>
 
                           {claimingRx && (
-                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800 animate-in slide-in-from-bottom-4">
-                                  <div className="flex justify-between items-start mb-4">
-                                      <div>
-                                          <h4 className="font-bold text-lg text-emerald-800 dark:text-emerald-300">Valid Prescription Found</h4>
-                                          <p className="text-sm text-emerald-600 dark:text-emerald-400">Patient: {claimingRx.patient} • Dr. {claimingRx.doctor}</p>
-                                          <p className="text-xs text-gray-500 mt-1">ID: {claimingRx.qr_code}</p>
+                              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 md:p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800 animate-in slide-in-from-bottom-4 pb-24 md:pb-6">
+                                  <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-2">
+                                      <div className="flex-1">
+                                          <h4 className="font-bold text-base md:text-lg text-emerald-800 dark:text-emerald-300">Valid Prescription Found</h4>
+                                          <p className="text-xs md:text-sm text-emerald-600 dark:text-emerald-400">Patient: {claimingRx.patient} • Dr. {claimingRx.doctor}</p>
+                                          <p className="text-xs text-gray-500 mt-1 break-all">ID: {claimingRx.qr_code}</p>
                                       </div>
-                                      <span className="bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-3 py-1 rounded-full text-xs font-bold">{claimingRx.status}</span>
+                                      <span className="bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">{claimingRx.status}</span>
                                   </div>
                                   
                                   <div className="bg-white dark:bg-[#0F172A] rounded-xl p-4 mb-6">
                                       {claimingRx.items && claimingRx.items.length > 0 ? claimingRx.items.map((item: any, i: number) => (
-                                          <div key={i} className="flex justify-between border-b border-gray-100 dark:border-gray-700/50 last:border-0 py-2">
-                                              <span className="font-medium">{item.name} <span className="text-gray-500 text-sm">({item.dosage})</span></span>
-                                              <span className="font-bold">x{item.qty || item.quantity || 1}</span>
+                                          <div key={i} className="flex justify-between border-b border-gray-100 dark:border-gray-700/50 last:border-0 py-2 text-sm md:text-base">
+                                              <span className="font-medium flex-1 pr-2">{item.name} <span className="text-gray-500 text-xs md:text-sm">({item.dosage})</span></span>
+                                              <span className="font-bold whitespace-nowrap">x{item.qty || item.quantity || 1}</span>
                                           </div>
                                       )) : (
-                                          <p className="text-gray-500 italic">No items listed in prescription.</p>
+                                          <p className="text-gray-500 italic text-sm">No items listed in prescription.</p>
                                       )}
-                                      {claimingRx.notes && <p className="mt-4 text-sm text-gray-600 italic">Doctor Notes: {claimingRx.notes}</p>}
+                                      {claimingRx.notes && <p className="mt-4 text-xs md:text-sm text-gray-600 dark:text-gray-400 italic break-words">Doctor Notes: {claimingRx.notes}</p>}
                                   </div>
 
-                                  <div className="flex gap-4">
-                                      <button onClick={() => setClaimingRx(null)} className="flex-1 py-3 bg-white dark:bg-[#0F172A] text-gray-700 dark:text-gray-300 font-bold rounded-xl border border-gray-200 dark:border-gray-700/50">Cancel</button>
+                                  <div className="flex flex-col sm:flex-row gap-3">
+                                      <button onClick={() => setClaimingRx(null)} className="flex-1 py-3 bg-white dark:bg-[#0F172A] text-gray-700 dark:text-gray-300 font-bold rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancel</button>
                                       <button 
                                         onClick={handleClaimRx} 
                                         disabled={isDispensing}
-                                        className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 disabled:opacity-70"
+                                        className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 disabled:opacity-70 transition-colors"
                                       >
                                           {isDispensing ? 'Processing...' : 'Dispense Medicines'}
                                       </button>
@@ -658,17 +705,17 @@ export const Pharmacy: React.FC = memo(() => {
                           </div>
 
                           {showAddBranch && (
-                              <div className="bg-gray-50 dark:bg-[#0A1B2E]/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/50 mb-6 animate-in slide-in-from-top-2">
-                                  <h3 className="font-bold mb-4">New Branch Details</h3>
+                              <div className="bg-gray-50 dark:bg-[#0A1B2E]/50 p-4 md:p-6 rounded-2xl border border-gray-200 dark:border-gray-700/50 mb-6 animate-in slide-in-from-top-2 pb-24 md:pb-6">
+                                  <h3 className="font-bold mb-4 text-lg">New Branch Details</h3>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <input type="text" placeholder="Branch Name" value={newBranch.name} onChange={e => setNewBranch({...newBranch, name: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="Location" value={newBranch.location} onChange={e => setNewBranch({...newBranch, location: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="License Number" value={newBranch.license} onChange={e => setNewBranch({...newBranch, license: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
-                                      <input type="text" placeholder="Phone Contact" value={newBranch.phone} onChange={e => setNewBranch({...newBranch, phone: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A]" />
+                                      <input type="text" placeholder="Branch Name" value={newBranch.name} onChange={e => setNewBranch({...newBranch, name: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white" />
+                                      <input type="text" placeholder="Location" value={newBranch.location} onChange={e => setNewBranch({...newBranch, location: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white" />
+                                      <input type="text" placeholder="License Number" value={newBranch.license} onChange={e => setNewBranch({...newBranch, license: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white" />
+                                      <input type="text" placeholder="Phone Contact" value={newBranch.phone} onChange={e => setNewBranch({...newBranch, phone: e.target.value})} className="p-3 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#0F172A] text-gray-900 dark:text-white" />
                                   </div>
-                                  <div className="flex justify-end gap-2 mt-4">
-                                      <button onClick={() => setShowAddBranch(false)} className="px-4 py-2 text-gray-500 font-bold">Cancel</button>
-                                      <button onClick={handleCreateBranch} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold">Save Branch</button>
+                                  <div className="flex flex-col sm:flex-row justify-end gap-2 mt-6">
+                                      <button onClick={() => setShowAddBranch(false)} className="px-6 py-3 text-gray-600 dark:text-gray-400 font-bold hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
+                                      <button onClick={handleCreateBranch} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">Save Branch</button>
                                   </div>
                               </div>
                           )}
@@ -923,22 +970,22 @@ export const Pharmacy: React.FC = memo(() => {
 
   // Patient View - Redesigned with Conversion Focus
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 relative">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 relative pb-24 md:pb-6">
       {/* Hero Section with Trust Signals */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-2xl md:rounded-[2.5rem] p-6 md:p-12 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="text-yellow-300" size={24} />
             <span className="text-yellow-200 font-bold text-sm uppercase tracking-wider">Trusted by 10,000+ Patients</span>
                     </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold mb-3 md:mb-4 leading-tight">
             Your Health, Delivered to Your Door
           </h1>
-          <p className="text-blue-100 text-lg mb-6 max-w-2xl">
+          <p className="text-blue-100 text-sm md:text-lg mb-4 md:mb-6 max-w-2xl">
             Get authentic medicines from verified pharmacies. Fast delivery, secure payment, and expert care—all in one place.
           </p>
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-wrap gap-2 md:gap-4 items-center">
             <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
               <Shield size={18} className="text-yellow-300" />
               <span className="text-sm font-bold">100% Authentic</span>
@@ -960,7 +1007,7 @@ export const Pharmacy: React.FC = memo(() => {
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="bg-white dark:bg-[#0F172A] rounded-2xl p-6 border border-gray-100 dark:border-gray-700/50 shadow-sm">
+      <div className="bg-white dark:bg-[#0F172A] rounded-2xl p-4 md:p-6 border border-gray-100 dark:border-gray-700/50 shadow-sm">
         <div className="flex flex-col gap-4">
           {/* Top Row: Search, Category, Sort, Cart */}
           <div className="flex flex-col md:flex-row gap-4">
@@ -1052,7 +1099,7 @@ export const Pharmacy: React.FC = memo(() => {
       </div>
 
       {/* Benefits Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-24 md:pb-6">
         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl p-6 border border-emerald-200 dark:border-emerald-800">
           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center mb-4">
             <Award className="text-emerald-600 dark:text-emerald-400" size={24} />
@@ -1101,7 +1148,7 @@ export const Pharmacy: React.FC = memo(() => {
             <p className="text-sm text-gray-400 dark:text-gray-500">Try adjusting your search or filter criteria</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-24 md:pb-6">
             {filteredMedicines.map((med, index) => (
               <div 
                 key={med.id} 
@@ -1221,10 +1268,10 @@ export const Pharmacy: React.FC = memo(() => {
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
             onClick={() => setShowCart(false)}
           />
-          <div className="fixed right-0 top-0 bottom-0 w-full md:w-96 bg-white dark:bg-[#0F172A] shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <ShoppingCart size={24} />
+          <div className="fixed right-0 top-0 bottom-0 w-full md:w-96 bg-white dark:bg-[#0F172A] shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300 safe-area-inset-bottom">
+            <div className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <ShoppingCart size={20} className="md:w-6 md:h-6" />
                 Shopping Cart ({cart.length})
               </h3>
               <button
@@ -1235,7 +1282,7 @@ export const Pharmacy: React.FC = memo(() => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
               {cart.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <ShoppingCart className="text-gray-300 mb-4" size={64} />
@@ -1293,7 +1340,7 @@ export const Pharmacy: React.FC = memo(() => {
             </div>
 
             {cart.length > 0 && (
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gradient-to-b from-transparent to-blue-50/50 dark:to-blue-900/10">
+              <div className="p-4 md:p-6 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gradient-to-b from-transparent to-blue-50/50 dark:to-blue-900/10 pb-20 md:pb-6 safe-area-inset-bottom">
                 <div className="space-y-2 pb-2">
                   <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
                     <span>Subtotal ({cart.length} {cart.length === 1 ? 'item' : 'items'}):</span>

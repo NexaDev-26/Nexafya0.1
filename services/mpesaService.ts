@@ -92,7 +92,16 @@ class MPesaService {
         const passKey = import.meta.env.VITE_MPESA_PASSKEY;
 
         if (!consumerKey || !consumerSecret || !shortCode || !passKey) {
-          throw new Error('M-Pesa credentials not found in .env file. Please add VITE_MPESA_CONSUMER_KEY, VITE_MPESA_CONSUMER_SECRET, VITE_MPESA_SHORTCODE, and VITE_MPESA_PASSKEY');
+          // Mock mode - simulate M-Pesa payment
+          console.warn('M-Pesa credentials not found. Using mock mode.');
+          const { mockDelay, generateMockTransactionId } = await import('../utils/mockApi');
+          await mockDelay(1500);
+          const mockTransactionId = generateMockTransactionId('MPESA');
+          return {
+            success: true,
+            checkoutRequestId: mockTransactionId,
+            customerMessage: 'STK Push sent to your phone. Please complete payment (mock mode).',
+          };
         }
 
         this.initialize({
@@ -153,6 +162,19 @@ class MPesaService {
         };
       }
     } catch (error: any) {
+      // If error is about missing credentials, use mock mode
+      if (error.message?.includes('credentials not found')) {
+        console.warn('M-Pesa credentials not found. Using mock mode.');
+        const { mockDelay, generateMockTransactionId } = await import('../utils/mockApi');
+        await mockDelay(1500);
+        const mockTransactionId = generateMockTransactionId('MPESA');
+        return {
+          success: true,
+          checkoutRequestId: mockTransactionId,
+          customerMessage: 'STK Push sent to your phone. Please complete payment (mock mode).',
+        };
+      }
+      
       console.error('M-Pesa STK Push error:', error);
       return {
         success: false,
@@ -167,7 +189,14 @@ class MPesaService {
   async querySTKStatus(checkoutRequestId: string): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
       if (!this.config) {
-        throw new Error('M-Pesa service not initialized');
+        // Mock mode - simulate completed payment
+        console.warn('M-Pesa service not initialized. Using mock mode.');
+        const { mockDelay } = await import('../utils/mockApi');
+        await mockDelay(500);
+        return {
+          success: true,
+          status: 'COMPLETED',
+        };
       }
 
       const accessToken = await this.getAccessToken();

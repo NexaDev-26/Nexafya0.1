@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Upload, Search, Package, Layers, Tag, Ruler, TrendingUp, TrendingDown, RefreshCw, Filter, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Upload, Search, Package, Layers, Tag, Ruler, TrendingUp, TrendingDown, RefreshCw, Filter, ArrowUp, ArrowDown, RotateCcw, FileText, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, serverTimestamp, orderBy, writeBatch } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage, storageRefs } from '../lib/firebase';
@@ -108,6 +108,14 @@ export const PharmacyInventory: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  
+  // Bulk Import State
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkItems, setBulkItems] = useState<Partial<InventoryItem>[]>([]);
+  const [importMode, setImportMode] = useState<'manual' | 'csv'>('manual');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ total: 0, completed: 0, errors: [] as string[] });
 
   // Groups
   const [groups, setGroups] = useState<ItemGroup[]>([]);
@@ -330,13 +338,26 @@ export const PharmacyInventory: React.FC = () => {
         setUploadingImage(false);
       }
 
+      // Validate required fields
+      if (!itemForm.name || itemForm.name.trim() === '') {
+        notify('Item name is required', 'error');
+        setLoading(false);
+        return;
+      }
+
+      if (Number(itemForm.sellingPrice || 0) <= 0) {
+        notify('Selling price must be greater than 0', 'error');
+        setLoading(false);
+        return;
+      }
+
       const itemData = {
         pharmacy_id: user.id,
-        name: itemForm.name,
-        description: itemForm.description || '',
+        name: itemForm.name.trim(),
+        description: (itemForm.description || '').trim(),
         category: itemForm.categoryName || 'General',
-        groupId: itemForm.groupId,
-        categoryId: itemForm.categoryId,
+        groupId: itemForm.groupId || null,
+        categoryId: itemForm.categoryId || null,
         selling_price: Number(itemForm.sellingPrice || 0),
         buying_price: Number(itemForm.buyingPrice || 0),
         stock: Number(itemForm.openingStock || 0),
@@ -345,8 +366,8 @@ export const PharmacyInventory: React.FC = () => {
         track_inventory: itemForm.trackInventory !== false,
         status: itemForm.status || 'ACTIVE',
         image_url: imageUrl,
-        income_account: itemForm.incomeAccount || '',
-        expense_account: itemForm.expenseAccount || '',
+        income_account: (itemForm.incomeAccount || '').trim(),
+        expense_account: (itemForm.expenseAccount || '').trim(),
         min_stock: 10, // Default reorder level
         updatedAt: serverTimestamp(),
       };
@@ -379,11 +400,18 @@ export const PharmacyInventory: React.FC = () => {
       });
       setImageFile(null);
       loadItems();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save item:', error);
-      notify('Failed to save item', 'error');
+      const errorMessage = error?.message || error?.code || 'Unknown error';
+      const detailedError = error?.code === 'permission-denied' 
+        ? 'Permission denied. Please check your Firestore security rules.'
+        : error?.code === 'invalid-argument'
+        ? 'Invalid data. Please check all required fields.'
+        : error?.message || 'Failed to save item';
+      notify(detailedError, 'error');
     } finally {
       setLoading(false);
+      setUploadingImage(false);
     }
   };
 
@@ -567,127 +595,180 @@ export const PharmacyInventory: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700/50 overflow-x-auto">
-        {[
-          { id: 'items', label: 'Items List', icon: Package },
-          { id: 'adjustments', label: 'Adjustments', icon: TrendingUp },
-          { id: 'groups', label: 'Groups', icon: Layers },
-          { id: 'categories', label: 'Categories', icon: Tag },
-          { id: 'units', label: 'Units', icon: Ruler },
-          { id: 'conversions', label: 'Unit Conversions', icon: ArrowUp },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <tab.icon size={18} /> {tab.label}
-          </button>
-        ))}
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Header Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 rounded-3xl p-6 md:p-8 text-white shadow-lg">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Inventory Management</h1>
+            <p className="text-blue-100 text-sm">Manage your pharmacy stock, items, and adjustments</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <p className="text-xs text-blue-100 uppercase tracking-wide mb-1">Total Items</p>
+              <p className="text-2xl font-bold">{items.length}</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <p className="text-xs text-blue-100 uppercase tracking-wide mb-1">Active</p>
+              <p className="text-2xl font-bold">{items.filter(i => i.status === 'ACTIVE').length}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs - Cleaner Design */}
+      <div className="bg-white dark:bg-[#0F172A] rounded-2xl p-2 shadow-sm border border-gray-100 dark:border-gray-700/50">
+        <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {[
+            { id: 'items', label: 'Items', icon: Package },
+            { id: 'adjustments', label: 'Adjustments', icon: TrendingUp },
+            { id: 'groups', label: 'Groups', icon: Layers },
+            { id: 'categories', label: 'Categories', icon: Tag },
+            { id: 'units', label: 'Units', icon: Ruler },
+            { id: 'conversions', label: 'Conversions', icon: ArrowUp },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+              }`}
+            >
+              <tab.icon size={18} className={activeTab === tab.id ? 'scale-110' : ''} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Items List Tab */}
       {activeTab === 'items' && (
         <div className="space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          {/* Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold font-display text-gray-900 dark:text-white">Inventory Items</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your pharmacy inventory</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Items</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} found
+              </p>
             </div>
-            <button
-              onClick={() => {
-                setEditingItem(null);
-                setItemForm({
-                  name: '',
-                  description: '',
-                  sellingPrice: 0,
-                  buyingPrice: 0,
-                  trackInventory: true,
-                  openingStock: 0,
-                  unit: 'pcs',
-                  status: 'ACTIVE',
-                  pharmacyId: user?.id || '',
-                });
-                setShowItemModal(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2"
-            >
-              <Plus size={16} /> Add Item
-            </button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700/50 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
-              />
-            </div>
-            <div className="flex gap-2">
-              {['ALL', 'ACTIVE', 'INACTIVE'].map(status => (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(status as any)}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-colors ${
-                    filterStatus === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white dark:bg-[#0F172A] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700/50'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowBulkImportModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-md shadow-emerald-600/30 transition-all hover:scale-105"
+              >
+                <Upload size={18} /> Bulk Import
+              </button>
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setItemForm({
+                    name: '',
+                    description: '',
+                    sellingPrice: 0,
+                    buyingPrice: 0,
+                    trackInventory: true,
+                    openingStock: 0,
+                    unit: 'pcs',
+                    status: 'ACTIVE',
+                    pharmacyId: user?.id || '',
+                  });
+                  setShowItemModal(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-md shadow-blue-600/30 transition-all hover:scale-105"
+              >
+                <Plus size={18} /> Add New Item
+              </button>
             </div>
           </div>
 
-          {/* Items Table */}
-          <div className="bg-white dark:bg-[#0F172A] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+          {/* Search and Filters - Cleaner Design */}
+          <div className="bg-white dark:bg-[#0F172A] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700/50">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by name, category, or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-[#0A1B2E] border border-gray-200 dark:border-gray-700/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 dark:text-white transition-all"
+                />
+              </div>
+              <div className="flex gap-2">
+                {['ALL', 'ACTIVE', 'INACTIVE'].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setFilterStatus(status as any)}
+                    className={`px-5 py-3 rounded-xl font-bold text-sm transition-all ${
+                      filterStatus === status
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-50 dark:bg-[#0A1B2E] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Items Table - Enhanced Design */}
+          <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-[#0A1B2E]/50">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-[#0A1B2E] dark:to-[#0A1B2E]/50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Group</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cost</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Selling Price</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">OP Stock</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">On Hand</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Item</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Cost Price</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Selling Price</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Stock</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                        No items found. Add your first item to get started.
+                      <td colSpan={7} className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Package className="text-gray-300 dark:text-gray-600" size={48} />
+                          <p className="text-gray-500 dark:text-gray-400 font-medium">No items found</p>
+                          <p className="text-sm text-gray-400 dark:text-gray-500">Add your first item to get started</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     filteredItems.map(item => (
-                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group">
                         <td className="px-6 py-4">
-                          <p className="font-bold text-gray-900 dark:text-white">{item.name}</p>
-                          {item.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-700" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 flex items-center justify-center">
+                                <Package size={20} className="text-blue-600 dark:text-blue-400" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-bold text-gray-900 dark:text-white">{item.name}</p>
+                              {item.description && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{item.description}</p>
+                              )}
+                              {item.groupName && item.groupName !== 'N/A' && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 mt-1 inline-block">{item.groupName}</span>
+                              )}
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{item.groupName || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{item.categoryName || 'N/A'}</td>
                         <td className="px-6 py-4">
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{item.categoryName || 'Uncategorized'}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                             TZS {Number(item.buyingPrice || 0).toLocaleString()}
                           </span>
                         </td>
@@ -697,15 +778,17 @@ export const PharmacyInventory: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">{item.openingStock || 0}</span>
+                          <div className="flex flex-col">
+                            <span className={`text-sm font-bold ${(item.onHand || 0) < 10 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                              {item.onHand || 0} {item.unit}
+                            </span>
+                            {(item.onHand || 0) < 10 && (
+                              <span className="text-xs text-red-500 dark:text-red-400 mt-1">Low stock</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-sm font-bold ${(item.onHand || 0) < 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                            {item.onHand || 0} {item.unit}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
                             item.status === 'ACTIVE'
                               ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
@@ -713,23 +796,25 @@ export const PharmacyInventory: React.FC = () => {
                             {item.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => {
                                 setEditingItem(item);
                                 setItemForm(item);
                                 setShowItemModal(true);
                               }}
-                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all hover:scale-110"
+                              title="Edit item"
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleDeleteItem(item.id!)}
-                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              className="p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all hover:scale-110"
+                              title="Delete item"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </td>
@@ -741,27 +826,35 @@ export const PharmacyInventory: React.FC = () => {
             </div>
           </div>
 
-          {/* Add/Edit Item Modal */}
+          {/* Add/Edit Item Modal - Enhanced */}
           {showItemModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-              <div className="bg-white dark:bg-[#0F172A] w-full max-w-4xl rounded-[2rem] shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between sticky top-0 bg-white dark:bg-[#0F172A] z-10">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {editingItem ? 'Edit Item' : 'Add New Item'}
-                  </h3>
+              <div className="bg-white dark:bg-[#0F172A] w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Modal Header - Sticky */}
+                <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white dark:from-[#0A1B2E] dark:to-[#0F172A]">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {editingItem ? 'Edit Item' : 'Add New Item'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {editingItem ? 'Update item details' : 'Add a new item to your inventory'}
+                    </p>
+                  </div>
                   <button
                     onClick={() => {
                       setShowItemModal(false);
                       setEditingItem(null);
                     }}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all hover:scale-110"
                   >
                     <X size={20} className="text-gray-500" />
                   </button>
                 </div>
+                
+                {/* Modal Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-6">
 
-                <div className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">Item Name *</label>
                       <input
@@ -879,37 +972,26 @@ export const PharmacyInventory: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700/50">
-                    <button
-                      onClick={() => {
-                        setShowItemModal(false);
-                        setEditingItem(null);
-                      }}
-                      className="px-6 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveItem}
-                      disabled={loading}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50"
-                    >
-                      {loading ? 'Saving...' : editingItem ? 'Update Item' : 'Save Item'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await handleSaveItem();
-                        if (!loading) {
-                          setShowItemModal(false);
-                          setEditingItem(null);
-                        }
-                      }}
-                      disabled={loading}
-                      className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50"
-                    >
-                      Save and Close
-                    </button>
-                  </div>
+                </div>
+                
+                {/* Modal Footer - Sticky */}
+                <div className="p-6 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/30 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowItemModal(false);
+                      setEditingItem(null);
+                    }}
+                    className="px-6 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveItem}
+                    disabled={loading}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-600/30 hover:scale-105"
+                  >
+                    {loading ? 'Saving...' : editingItem ? 'Update Item' : 'Save Item'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -917,13 +999,15 @@ export const PharmacyInventory: React.FC = () => {
         </div>
       )}
 
-      {/* Adjustments Tab - Continue in next part due to length */}
+      {/* Adjustments Tab - Enhanced */}
       {activeTab === 'adjustments' && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold font-display text-gray-900 dark:text-white">Inventory Adjustments</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage stock adjustments</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Stock Adjustments</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {adjustments.length} {adjustments.length === 1 ? 'adjustment' : 'adjustments'} recorded
+              </p>
             </div>
             <button
               onClick={() => {
@@ -937,44 +1021,48 @@ export const PharmacyInventory: React.FC = () => {
                 });
                 setShowAdjustmentModal(true);
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-md shadow-blue-600/30 transition-all hover:scale-105"
             >
-              <Plus size={16} /> New Adjustment
+              <Plus size={18} /> New Adjustment
             </button>
           </div>
 
-          <div className="bg-white dark:bg-[#0F172A] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+          <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-[#0A1B2E]/50">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-[#0A1B2E] dark:to-[#0A1B2E]/50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Adjusted Item</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Adjustment Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Item</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
                   {adjustments.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                        No adjustments found.
+                      <td colSpan={5} className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <TrendingUp className="text-gray-300 dark:text-gray-600" size={48} />
+                          <p className="text-gray-500 dark:text-gray-400 font-medium">No adjustments found</p>
+                          <p className="text-sm text-gray-400 dark:text-gray-500">Create your first stock adjustment</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     adjustments.map(adj => (
-                      <tr key={adj.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <tr key={adj.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-gray-900 dark:text-white">{adj.itemName || 'Unknown Item'}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
                             adj.adjustmentType === 'ADD'
                               ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                               : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                           }`}>
-                            {adj.adjustmentType === 'ADD' ? <TrendingUp size={12} className="inline mr-1" /> : <TrendingDown size={12} className="inline mr-1" />}
+                            {adj.adjustmentType === 'ADD' ? <TrendingUp size={14} className="mr-1.5" /> : <TrendingDown size={14} className="mr-1.5" />}
                             {adj.adjustmentType}
                           </span>
                         </td>
@@ -983,12 +1071,14 @@ export const PharmacyInventory: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {adj.date ? new Date(adj.date).toLocaleDateString() : 'N/A'}
+                            {adj.date ? new Date(adj.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {adj.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{adj.description}</p>
+                          {adj.description ? (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{adj.description}</p>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">No notes</span>
                           )}
                         </td>
                       </tr>
@@ -1090,28 +1180,37 @@ export const PharmacyInventory: React.FC = () => {
         </div>
       )}
 
-      {/* Groups Tab - Simplified for space, similar pattern */}
+      {/* Groups Tab - Enhanced */}
       {activeTab === 'groups' && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold font-display text-gray-900 dark:text-white">Item Groups</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Organize items into groups</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Item Groups</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {groups.length} {groups.length === 1 ? 'group' : 'groups'} defined
+              </p>
             </div>
             <button
               onClick={() => {
                 setGroupForm({ name: '', description: '', status: 'ACTIVE', pharmacyId: user?.id || '' });
                 setShowGroupModal(true);
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-md shadow-blue-600/30 transition-all hover:scale-105"
             >
-              <Plus size={16} /> Add Group
+              <Plus size={18} /> Add Group
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map(group => (
-              <div key={group.id} className="bg-white dark:bg-[#0F172A] p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
+            {groups.length === 0 ? (
+              <div className="col-span-full bg-white dark:bg-[#0F172A] p-12 rounded-2xl border border-gray-100 dark:border-gray-700/50 text-center">
+                <Layers className="text-gray-300 dark:text-gray-600 mx-auto mb-4" size={48} />
+                <p className="text-gray-500 dark:text-gray-400 font-medium mb-2">No groups found</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">Create your first item group</p>
+              </div>
+            ) : (
+              groups.map(group => (
+                <div key={group.id} className="bg-white dark:bg-[#0F172A] p-5 rounded-2xl border border-gray-100 dark:border-gray-700/50 hover:shadow-md transition-all hover:scale-105">
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-gray-900 dark:text-white">{group.name}</h4>
                   <span className={`px-2 py-1 rounded-full text-xs font-bold ${
@@ -1125,17 +1224,18 @@ export const PharmacyInventory: React.FC = () => {
                 {group.description && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{group.description}</p>
                 )}
-                <button
-                  onClick={() => {
-                    setGroupForm(group);
-                    setShowGroupModal(true);
-                  }}
-                  className="w-full py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm transition-colors"
-                >
-                  Edit Group
-                </button>
-              </div>
-            ))}
+                  <button
+                    onClick={() => {
+                      setGroupForm(group);
+                      setShowGroupModal(true);
+                    }}
+                    className="w-full py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm transition-all hover:scale-105"
+                  >
+                    Edit Group
+                  </button>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Group Modal */}
@@ -1585,6 +1685,304 @@ export const PharmacyInventory: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImportModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#0F172A] w-full max-w-6xl rounded-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white dark:from-[#0A1B2E] dark:to-[#0F172A]">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Bulk Import Items</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Import multiple items at once via CSV or manual entry</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowBulkImportModal(false);
+                  setBulkItems([]);
+                  setCsvFile(null);
+                  setImportMode('manual');
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all hover:scale-110"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Import Mode Tabs */}
+              <div className="flex gap-2 mb-6 bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-1">
+                <button
+                  onClick={() => {
+                    setImportMode('manual');
+                    if (bulkItems.length === 0) addBulkItemRow();
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                    importMode === 'manual'
+                      ? 'bg-white dark:bg-[#0F172A] text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Manual Entry
+                </button>
+                <button
+                  onClick={() => setImportMode('csv')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                    importMode === 'csv'
+                      ? 'bg-white dark:bg-[#0F172A] text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  CSV Upload
+                </button>
+              </div>
+
+              {/* CSV Upload Mode */}
+              {importMode === 'csv' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <FileText className="text-blue-600 dark:text-blue-400 mt-0.5" size={20} />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-1">CSV Format</h4>
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                          Your CSV should include: Name, Description, Selling Price, Buying Price, Stock, Unit, Category, Status
+                        </p>
+                        <button
+                          onClick={downloadCSVTemplate}
+                          className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-bold flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download Template
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setCsvFile(file);
+                          handleCSVUpload(file);
+                        }
+                      }}
+                      className="hidden"
+                      id="csv-upload"
+                    />
+                    <label
+                      htmlFor="csv-upload"
+                      className="cursor-pointer flex flex-col items-center gap-3"
+                    >
+                      <Upload className="text-gray-400" size={48} />
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-white mb-1">
+                          {csvFile ? csvFile.name : 'Click to upload CSV file'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">CSV files only</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {bulkItems.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">
+                        Preview ({bulkItems.length} items)
+                      </p>
+                      <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {bulkItems.slice(0, 10).map((item, index) => (
+                            <div key={index} className="flex items-center gap-3 text-sm">
+                              <CheckCircle2 size={16} className="text-emerald-500" />
+                              <span className="font-bold text-gray-900 dark:text-white">{item.name}</span>
+                              <span className="text-gray-500">- TZS {Number(item.sellingPrice || 0).toLocaleString()}</span>
+                            </div>
+                          ))}
+                          {bulkItems.length > 10 && (
+                            <p className="text-xs text-gray-500 italic">... and {bulkItems.length - 10} more items</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Manual Entry Mode */}
+              {importMode === 'manual' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                      {bulkItems.length} {bulkItems.length === 1 ? 'item' : 'items'} ready to import
+                    </p>
+                    <button
+                      onClick={addBulkItemRow}
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-bold flex items-center gap-2"
+                    >
+                      <Plus size={16} /> Add Row
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-[#0A1B2E]">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Name *</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Selling Price *</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Buying Price</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Stock</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Unit</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Category</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {bulkItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                              <button
+                                onClick={addBulkItemRow}
+                                className="text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                              >
+                                Click to add your first item
+                              </button>
+                            </td>
+                          </tr>
+                        ) : (
+                          bulkItems.map((item, index) => (
+                            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={item.name || ''}
+                                  onChange={(e) => updateBulkItem(index, 'name', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                  placeholder="Item name"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={item.sellingPrice || 0}
+                                  onChange={(e) => updateBulkItem(index, 'sellingPrice', Number(e.target.value))}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={item.buyingPrice || 0}
+                                  onChange={(e) => updateBulkItem(index, 'buyingPrice', Number(e.target.value))}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={item.openingStock || 0}
+                                  onChange={(e) => updateBulkItem(index, 'openingStock', Number(e.target.value))}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <select
+                                  value={item.unit || 'pcs'}
+                                  onChange={(e) => updateBulkItem(index, 'unit', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                  <option value="pcs">pcs</option>
+                                  <option value="box">box</option>
+                                  <option value="bottle">bottle</option>
+                                  <option value="strip">strip</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-3">
+                                <select
+                                  value={item.categoryName || 'General'}
+                                  onChange={(e) => updateBulkItem(index, 'categoryName', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0A1B2E] text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                  <option value="General">General</option>
+                                  {categories.filter(c => c.status === 'ACTIVE').map(cat => (
+                                    <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => removeBulkItemRow(index)}
+                                  className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Import Progress */}
+              {importing && (
+                <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <RefreshCw className="animate-spin text-blue-600 dark:text-blue-400" size={20} />
+                    <span className="font-bold text-blue-900 dark:text-blue-100">
+                      Importing items... {importProgress.completed} / {importProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 dark:bg-blue-900/50 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.completed / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/30 flex justify-between items-center">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {bulkItems.length > 0 && (
+                  <span>
+                    {bulkItems.filter(item => item.name && Number(item.sellingPrice || 0) > 0).length} valid items ready
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowBulkImportModal(false);
+                    setBulkItems([]);
+                    setCsvFile(null);
+                  }}
+                  className="px-6 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                  disabled={importing}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkSave}
+                  disabled={importing || bulkItems.length === 0 || bulkItems.filter(item => item.name && Number(item.sellingPrice || 0) > 0).length === 0}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-600/30 hover:scale-105"
+                >
+                  {importing ? `Importing... (${importProgress.completed}/${importProgress.total})` : `Import ${bulkItems.filter(item => item.name && Number(item.sellingPrice || 0) > 0).length} Items`}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

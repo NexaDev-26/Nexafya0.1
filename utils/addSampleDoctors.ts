@@ -3,7 +3,6 @@
  * Can be called from the browser console or admin panel
  */
 
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 
 export const sampleDoctors = [
@@ -101,8 +100,15 @@ export const sampleDoctors = [
  * Add sample doctors to Firestore
  * Checks if doctors already exist before adding
  */
+/**
+ * Add sample doctors to Firestore
+ * Checks if doctors already exist before adding
+ */
 export const addSampleDoctors = async (): Promise<{ success: boolean; message: string; added: number }> => {
   try {
+    // Use dynamic import to ensure Firebase functions are available at runtime
+    const { collection, addDoc, serverTimestamp, getDocs, query, where } = await import('firebase/firestore');
+    
     const doctorsRef = collection(firestore, 'doctors');
     let added = 0;
     let skipped = 0;
@@ -142,8 +148,44 @@ export const addSampleDoctors = async (): Promise<{ success: boolean; message: s
 };
 
 // Make it available globally for console access
-if (typeof window !== 'undefined') {
-  (window as any).addSampleDoctors = addSampleDoctors;
-  console.log('💡 Tip: Run addSampleDoctors() in the console to add sample doctors');
+// Only register when explicitly called or when window is ready
+// This avoids issues with module loading in production builds
+const registerGlobally = () => {
+  if (typeof window !== 'undefined') {
+    try {
+      (window as any).addSampleDoctors = addSampleDoctors;
+      // Only log in development to avoid console noise in production
+      if (import.meta.env.DEV) {
+        console.log('💡 Tip: Run addSampleDoctors() in the console to add sample doctors');
+      }
+    } catch (error) {
+      // Silently fail in production
+      if (import.meta.env.DEV) {
+        console.warn('Failed to register addSampleDoctors globally:', error);
+      }
+    }
+  }
+};
+
+// Register immediately if window is available, otherwise wait for DOM
+// Use a safer approach that doesn't cause errors if DOM isn't ready
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', registerGlobally);
+    } else {
+      // Use requestIdleCallback if available, otherwise setTimeout
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(registerGlobally);
+      } else {
+        setTimeout(registerGlobally, 100);
+      }
+    }
+  } catch (error) {
+    // Silently fail if registration fails
+    if (import.meta.env.DEV) {
+      console.warn('Failed to set up addSampleDoctors registration:', error);
+    }
+  }
 }
 

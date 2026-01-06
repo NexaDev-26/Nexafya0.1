@@ -363,7 +363,7 @@ export const CourierDashboard: React.FC<CourierDashboardProps> = ({ user, initia
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20 relative">
+    <div className="space-y-6 animate-in fade-in duration-500 relative" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}>
       
       {/* PoD Modal */}
       {showPodModal && (

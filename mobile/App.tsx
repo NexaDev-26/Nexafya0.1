@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, StatusBar, SafeAreaView, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { Ionicons, FontAwesome5, MaterialIcons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
+// Note: For React Native, use @react-native-firebase packages
+// This is a placeholder - actual implementation requires Firebase React Native SDK
+// import auth from '@react-native-firebase/auth';
+// import firestore from '@react-native-firebase/firestore';
 
 // Production API URL
 const API_BASE_URL = 'http://192.168.1.100:3001'; // Replace with your real local/remote IP
@@ -14,46 +17,53 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Initial Session Check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchUserData(session.user.id);
-      else setLoading(false);
-    });
-
-    // 2. Listen for Auth Changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchUserData(session.user.id);
-      else {
-          setUser(null);
-          setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // 1. Initial Session Check - Firebase Auth
+    // Note: This requires @react-native-firebase/auth
+    // const unsubscribe = auth().onAuthStateChanged((firebaseUser) => {
+    //   if (firebaseUser) {
+    //     setSession({ user: firebaseUser });
+    //     fetchUserData(firebaseUser.uid);
+    //   } else {
+    //     setSession(null);
+    //     setLoading(false);
+    //   }
+    // });
+    // return unsubscribe;
+    
+    // Placeholder: Check if user is logged in via web platform
+    // In production, sync with Firebase Auth
+    setLoading(false);
   }, []);
 
   const fetchUserData = async (userId) => {
       try {
           setLoading(true);
-          const [profileRes, aptRes] = await Promise.all([
-              supabase.from('profiles').select('*').eq('id', userId).single(),
-              supabase.from('appointments').select('*, doctor:doctor_id(name)').eq('patient_id', userId).order('scheduled_at', { ascending: false })
-          ]);
+          // Note: This requires @react-native-firebase/firestore
+          // const userDoc = await firestore().collection('users').doc(userId).get();
+          // const appointmentsSnapshot = await firestore()
+          //   .collection('appointments')
+          //   .where('patientId', '==', userId)
+          //   .orderBy('date', 'desc')
+          //   .get();
           
-          if (profileRes.data) setUser(profileRes.data);
-          if (aptRes.data) setAppointments(aptRes.data);
+          // if (userDoc.exists) setUser(userDoc.data());
+          // if (!appointmentsSnapshot.empty) {
+          //   setAppointments(appointmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          // }
 
-          // 3. Real-time Order Subscription
-          const orderChannel = supabase.channel(`user-orders-${userId}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `patient_id=eq.${userId}` }, 
-            (payload) => {
-                Alert.alert("Order Update", `Your order status is now: ${payload.new.status}`);
-            })
-            .subscribe();
-
-          return () => supabase.removeChannel(orderChannel);
+          // Real-time Order Subscription - Firebase Firestore
+          // const unsubscribe = firestore()
+          //   .collection('orders')
+          //   .where('patientId', '==', userId)
+          //   .onSnapshot((snapshot) => {
+          //     snapshot.docChanges().forEach((change) => {
+          //       if (change.type === 'modified') {
+          //         Alert.alert("Order Update", `Your order status is now: ${change.doc.data().status}`);
+          //       }
+          //     });
+          //   });
+          
+          // return unsubscribe;
       } catch (err) {
           console.error("Data Fetch Error", err);
       } finally {
@@ -64,11 +74,13 @@ export default function App() {
   const handleCallAPI = async (endpoint, method = 'GET', body = null) => {
       if (!session) return;
       try {
+          // Get Firebase Auth token for API calls
+          // const token = await auth().currentUser?.getIdToken();
           const res = await fetch(`${API_BASE_URL}${endpoint}`, {
               method,
               headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${session.access_token}`
+                  // 'Authorization': `Bearer ${token}`
               },
               body: body ? JSON.stringify(body) : null
           });

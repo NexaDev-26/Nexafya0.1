@@ -112,7 +112,8 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
                      request.resource.data.pharmacy_id == request.auth.uid &&
-                     request.resource.data.keys().hasAll(['pharmacy_id', 'name', 'stock', 'price']);
+                     request.resource.data.keys().hasAll(['pharmacy_id', 'name', 'stock']) &&
+                     (request.resource.data.keys().hasAny(['price', 'selling_price']));
       allow update: if isAuthenticated() && 
                      resource.data.pharmacy_id == request.auth.uid &&
                      request.resource.data.pharmacy_id == resource.data.pharmacy_id;

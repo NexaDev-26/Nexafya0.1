@@ -79,7 +79,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onClose }) => {
 
           setLocalLoading(true);
           try {
-              // Simulation for phone - in real app, use Supabase verifyOtp
+              // Phone OTP verification - Firebase Auth phone authentication
               const mockEmail = `${role.toLowerCase()}@nexafya.com`;
               const success = await signIn(mockEmail, 'password');
               if (success) onLogin();

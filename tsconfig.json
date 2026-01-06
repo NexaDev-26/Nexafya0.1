@@ -21,6 +21,6 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "mobile", "dist", "prisma", "supabase"]
 }
     

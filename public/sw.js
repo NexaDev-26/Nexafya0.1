@@ -9,7 +9,6 @@ const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/index.css',
-  '/style.css',
   '/manifest.json',
   // Add more static assets as needed
 ];

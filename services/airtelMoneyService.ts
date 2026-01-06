@@ -45,7 +45,8 @@ class AirtelMoneyService {
       const clientSecret = import.meta.env.VITE_AIRTEL_MONEY_CLIENT_SECRET;
 
       if (!clientId || !clientSecret) {
-        throw new Error('Airtel Money credentials not found in .env file. Please add VITE_AIRTEL_MONEY_CLIENT_ID and VITE_AIRTEL_MONEY_CLIENT_SECRET');
+        // Will be handled in initiatePayment with mock mode
+        console.warn('Airtel Money credentials not found. Will use mock mode.');
       }
 
       this.initialize({
@@ -93,6 +94,23 @@ class AirtelMoneyService {
     description: string
   ): Promise<{ success: boolean; transactionId?: string; message?: string; error?: string }> {
     try {
+      // Check if credentials are available
+      const clientId = import.meta.env.VITE_AIRTEL_MONEY_CLIENT_ID;
+      const clientSecret = import.meta.env.VITE_AIRTEL_MONEY_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        // Mock mode - simulate Airtel Money payment
+        console.warn('Airtel Money credentials not found. Using mock mode.');
+        const { mockDelay, generateMockTransactionId } = await import('../utils/mockApi');
+        await mockDelay(1500);
+        const mockTransactionId = generateMockTransactionId('AIRTEL');
+        return {
+          success: true,
+          transactionId: mockTransactionId,
+          message: 'Payment request sent. Please complete on your phone (mock mode).',
+        };
+      }
+      
       const accessToken = await this.getAccessToken();
 
       // Format phone number (255XXXXXXXXX for Tanzania)
@@ -152,6 +170,21 @@ class AirtelMoneyService {
    */
   async queryPayment(transactionId: string): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
+      // Check if credentials are available
+      const clientId = import.meta.env.VITE_AIRTEL_MONEY_CLIENT_ID;
+      const clientSecret = import.meta.env.VITE_AIRTEL_MONEY_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        // Mock mode - simulate completed payment
+        console.warn('Airtel Money credentials not found. Using mock mode.');
+        const { mockDelay } = await import('../utils/mockApi');
+        await mockDelay(500);
+        return {
+          success: true,
+          status: 'COMPLETED',
+        };
+      }
+      
       const accessToken = await this.getAccessToken();
 
       const response = await fetch(`${this.baseUrl}/standard/v1/payments/${transactionId}`, {

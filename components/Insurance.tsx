@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ShieldCheck, CreditCard, Activity, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import { useNotification } from './NotificationSystem';

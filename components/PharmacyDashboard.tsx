@@ -126,122 +126,122 @@ export const PharmacyDashboard: React.FC<PharmacyDashboardProps> = ({ onNavigate
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Main Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-6 rounded-3xl shadow-lg shadow-blue-600/20">
-          <div className="flex items-center justify-between mb-4">
-            <DollarSign size={24} className="opacity-80" />
-            <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">Total Income</span>
+    <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
+      {/* Main Metrics Grid - Mobile Optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg shadow-blue-600/20">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <DollarSign size={20} className="md:w-6 md:h-6 opacity-80" />
+            <span className="text-[10px] md:text-xs bg-white/20 px-2 md:px-3 py-1 rounded-full font-bold">Total Income</span>
           </div>
-          <p className="text-3xl font-bold mb-1">TZS {dashboardData.totalIncome.toLocaleString()}</p>
-          <p className="text-blue-100 text-sm">All time earnings</p>
+          <p className="text-2xl md:text-3xl font-bold mb-1">TZS {dashboardData.totalIncome.toLocaleString()}</p>
+          <p className="text-blue-100 text-xs md:text-sm">All time earnings</p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white p-6 rounded-3xl shadow-lg shadow-emerald-600/20">
-          <div className="flex items-center justify-between mb-4">
-            <TrendingUp size={24} className="opacity-80" />
-            <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">Total Profits</span>
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg shadow-emerald-600/20">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <TrendingUp size={20} className="md:w-6 md:h-6 opacity-80" />
+            <span className="text-[10px] md:text-xs bg-white/20 px-2 md:px-3 py-1 rounded-full font-bold">Total Profits</span>
           </div>
-          <p className="text-3xl font-bold mb-1">TZS {dashboardData.totalProfits.toLocaleString()}</p>
-          <p className="text-emerald-100 text-sm">Income - Expenses</p>
+          <p className="text-2xl md:text-3xl font-bold mb-1">TZS {dashboardData.totalProfits.toLocaleString()}</p>
+          <p className="text-emerald-100 text-xs md:text-sm">Income - Expenses</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-600 to-purple-700 text-white p-6 rounded-3xl shadow-lg shadow-purple-600/20">
-          <div className="flex items-center justify-between mb-4">
-            <ShoppingBag size={24} className="opacity-80" />
-            <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">Cash Sales</span>
+        <div className="bg-gradient-to-br from-purple-600 to-purple-700 text-white p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg shadow-purple-600/20">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <ShoppingBag size={20} className="md:w-6 md:h-6 opacity-80" />
+            <span className="text-[10px] md:text-xs bg-white/20 px-2 md:px-3 py-1 rounded-full font-bold">Cash Sales</span>
           </div>
-          <p className="text-3xl font-bold mb-1">TZS {dashboardData.totalCashSales.toLocaleString()}</p>
-          <p className="text-purple-100 text-sm">Paid orders total</p>
+          <p className="text-2xl md:text-3xl font-bold mb-1">TZS {dashboardData.totalCashSales.toLocaleString()}</p>
+          <p className="text-purple-100 text-xs md:text-sm">Paid orders total</p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-600 to-amber-700 text-white p-6 rounded-3xl shadow-lg shadow-amber-600/20">
-          <div className="flex items-center justify-between mb-4">
-            <Calendar size={24} className="opacity-80" />
-            <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">Package Days</span>
+        <div className="bg-gradient-to-br from-amber-600 to-amber-700 text-white p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg shadow-amber-600/20">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <Calendar size={20} className="md:w-6 md:h-6 opacity-80" />
+            <span className="text-[10px] md:text-xs bg-white/20 px-2 md:px-3 py-1 rounded-full font-bold">Package Days</span>
           </div>
-          <p className="text-3xl font-bold mb-1">{dashboardData.packageActiveDays}</p>
-          <p className="text-amber-100 text-sm">Active subscription days</p>
-        </div>
-      </div>
-
-      {/* Secondary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-              <TrendingDown size={20} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Expenses</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">TZS {dashboardData.totalExpenses.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-              <Store size={20} className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Branches</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.totalBranches}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-              <Package size={20} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Items</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.totalItems}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl">
-              <AlertTriangle size={20} className="text-red-600 dark:text-red-400" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Low Stocks</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.lowStockItems}</p>
-            </div>
-          </div>
+          <p className="text-2xl md:text-3xl font-bold mb-1">{dashboardData.packageActiveDays}</p>
+          <p className="text-amber-100 text-xs md:text-sm">Active subscription days</p>
         </div>
       </div>
 
-      {/* Invoices & Customers Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Secondary Metrics - Mobile Optimized */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="p-1.5 md:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg md:rounded-xl">
+              <TrendingDown size={16} className="md:w-5 md:h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">Total Expenses</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">TZS {dashboardData.totalExpenses.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="p-1.5 md:p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg md:rounded-xl">
+              <Store size={16} className="md:w-5 md:h-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">Branches</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.totalBranches}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="p-1.5 md:p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg md:rounded-xl">
+              <Package size={16} className="md:w-5 md:h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">Total Items</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.totalItems}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="p-1.5 md:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg md:rounded-xl">
+              <AlertTriangle size={16} className="md:w-5 md:h-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">Low Stocks</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">{dashboardData.lowStockItems}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Invoices & Customers Section - Mobile Optimized */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Invoices Summary */}
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <FileText size={20} className="text-blue-600" /> Invoices Summary
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <h3 className="font-bold text-base md:text-lg text-gray-900 dark:text-white mb-4 md:mb-6 flex items-center gap-2">
+            <FileText size={18} className="md:w-5 md:h-5 text-blue-600" /> Invoices Summary
           </h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-[#0A1B2E]/50 rounded-2xl">
-              <span className="text-sm font-bold text-gray-600 dark:text-gray-400">Total Invoices</span>
-              <span className="text-xl font-bold text-gray-900 dark:text-white">{dashboardData.totalInvoices}</span>
+          <div className="space-y-3 md:space-y-4">
+            <div className="flex justify-between items-center p-3 md:p-4 bg-gray-50 dark:bg-[#0A1B2E]/50 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-gray-600 dark:text-gray-400">Total Invoices</span>
+              <span className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">{dashboardData.totalInvoices}</span>
             </div>
-            <div className="flex justify-between items-center p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl">
-              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Paid Invoices</span>
-              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{dashboardData.paidInvoices}</span>
+            <div className="flex justify-between items-center p-3 md:p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-emerald-700 dark:text-emerald-400">Paid Invoices</span>
+              <span className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400">{dashboardData.paidInvoices}</span>
             </div>
-            <div className="flex justify-between items-center p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl">
-              <span className="text-sm font-bold text-red-700 dark:text-red-400">Outstanding Invoices</span>
-              <span className="text-xl font-bold text-red-600 dark:text-red-400">{dashboardData.outstandingInvoices}</span>
+            <div className="flex justify-between items-center p-3 md:p-4 bg-red-50 dark:bg-red-900/20 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-red-700 dark:text-red-400">Outstanding Invoices</span>
+              <span className="text-lg md:text-xl font-bold text-red-600 dark:text-red-400">{dashboardData.outstandingInvoices}</span>
             </div>
           </div>
           {onNavigate && (
             <button 
               onClick={() => onNavigate('sales')}
-              className="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
+              className="mt-4 w-full py-2.5 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm md:text-base transition-all hover:scale-105 shadow-md shadow-blue-600/30"
             >
               View All Sales
             </button>
@@ -249,22 +249,22 @@ export const PharmacyDashboard: React.FC<PharmacyDashboardProps> = ({ onNavigate
         </div>
 
         {/* Customers Summary */}
-        <div className="bg-white dark:bg-[#0F172A] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-          <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <Users size={20} className="text-purple-600" /> Customers Summary
+        <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/50">
+          <h3 className="font-bold text-base md:text-lg text-gray-900 dark:text-white mb-4 md:mb-6 flex items-center gap-2">
+            <Users size={18} className="md:w-5 md:h-5 text-purple-600" /> Customers Summary
           </h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-[#0A1B2E]/50 rounded-2xl">
-              <span className="text-sm font-bold text-gray-600 dark:text-gray-400">Total Customers</span>
-              <span className="text-xl font-bold text-gray-900 dark:text-white">{dashboardData.totalCustomers}</span>
+          <div className="space-y-3 md:space-y-4">
+            <div className="flex justify-between items-center p-3 md:p-4 bg-gray-50 dark:bg-[#0A1B2E]/50 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-gray-600 dark:text-gray-400">Total Customers</span>
+              <span className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">{dashboardData.totalCustomers}</span>
             </div>
-            <div className="flex justify-between items-center p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl">
-              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Active Customers</span>
-              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{dashboardData.activeCustomers}</span>
+            <div className="flex justify-between items-center p-3 md:p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-emerald-700 dark:text-emerald-400">Active Customers</span>
+              <span className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400">{dashboardData.activeCustomers}</span>
             </div>
-            <div className="flex justify-between items-center p-4 bg-gray-100 dark:bg-gray-800 rounded-2xl">
-              <span className="text-sm font-bold text-gray-600 dark:text-gray-400">Inactive Customers</span>
-              <span className="text-xl font-bold text-gray-700 dark:text-gray-300">{dashboardData.inactiveCustomers}</span>
+            <div className="flex justify-between items-center p-3 md:p-4 bg-gray-100 dark:bg-gray-800 rounded-xl md:rounded-2xl">
+              <span className="text-xs md:text-sm font-bold text-gray-600 dark:text-gray-400">Inactive Customers</span>
+              <span className="text-lg md:text-xl font-bold text-gray-700 dark:text-gray-300">{dashboardData.inactiveCustomers}</span>
             </div>
           </div>
         </div>

@@ -11,6 +11,8 @@ import { usePreferences } from '../contexts/PreferencesContext';
 import { addDoc, collection, serverTimestamp, updateDoc, doc, getDocs, query, where, getDoc } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { UserRole } from '../types';
+import { paymentService } from '../services/paymentService';
+import { handleError } from '../utils/errorHandler';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -187,44 +189,39 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         ? `STK-${Date.now().toString().slice(-8)}`
         : referenceNumber.trim();
 
-      // Create transaction record
-      const transactionData = {
-        userId: user?.id,
-        userName: user?.name,
-        userLocation: user?.location || '',
-        recipientId: recipientId || null,
+      // Use paymentService which handles mock mode automatically
+      const paymentProvider = selectedMethod === 'mpesa_stk' || selectedMethod === 'mpesa' ? 'mpesa' 
+        : selectedMethod === 'tigopesa' ? 'tigopesa'
+        : selectedMethod === 'airtel' ? 'airtel'
+        : selectedMethod === 'bank' ? 'bank'
+        : selectedMethod === 'card' ? 'stripe' : 'mpesa';
+
+      const paymentResult = await paymentService.processPayment({
         amount,
-        currency: currency || userCurrency,
-        method: selectedMethod,
-        referenceNumber: autoRef,
+        currency: currency || userCurrency || 'TZS',
+        provider: paymentProvider,
+        userId: user?.id || '',
+        userName: user?.name || '',
         description,
         itemId,
         itemType,
-        status: selectedMethod === 'mpesa_stk' ? 'STK_REQUESTED' : 'PENDING_VERIFICATION',
-        phoneNumber: (selectedMethod.includes('pesa') || selectedMethod === 'airtel') ? phoneNumber : null,
-        accountNumber: selectedMethod === 'bank' ? accountNumber : null,
-        createdAt: serverTimestamp(),
-        timestamp: serverTimestamp()
-      };
+        recipientId,
+        phoneNumber: (selectedMethod.includes('pesa') || selectedMethod === 'airtel') ? phoneNumber : undefined,
+        metadata: {
+          referenceNumber: autoRef,
+          accountNumber: selectedMethod === 'bank' ? accountNumber : undefined,
+        }
+      });
 
-      const txRef = await addDoc(collection(firestore, 'transactions'), transactionData);
-
-      // STK Push: simulate provider callback after a short delay (patient pays automatically)
-      if (selectedMethod === 'mpesa_stk') {
-        notify('STK Push sent to your phone. Complete payment to continue.', 'info');
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        await updateDoc(doc(firestore, 'transactions', txRef.id), {
-          status: 'PENDING_VERIFICATION',
-          stkStatus: 'SUCCESS',
-          stkCompletedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        // Non-STK: assume patient already paid and just needs verification
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (!paymentResult.success) {
+        throw new Error(paymentResult.error || 'Payment processing failed');
       }
 
-      notify('Payment submitted. Awaiting verification.', 'success');
+      if (paymentResult.requiresVerification) {
+        notify(paymentResult.message || 'Payment submitted. Awaiting verification.', 'info');
+      } else {
+        notify(paymentResult.message || 'Payment processed successfully!', 'success');
+      }
       
       if (onSuccess) {
         onSuccess();
@@ -236,8 +233,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setAccountNumber('');
       setReferenceNumber('');
     } catch (error) {
-      console.error('Payment error:', error);
-      notify('Payment failed. Please try again.', 'error');
+      handleError(error, notify);
+      console.error('Payment processing error:', error);
     } finally {
       setIsProcessing(false);
     }

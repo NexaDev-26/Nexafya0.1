@@ -175,55 +175,67 @@ export const Layout: React.FC<LayoutProps> = ({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Enhanced Design */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white dark:bg-[#0F172A] border-r border-gray-200 dark:border-gray-700/50 transition-colors duration-300
         transform transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className="h-full flex flex-col p-6">
-          {/* Logo */}
-          <div className="flex items-center gap-3 px-2 mb-10">
-            <LogoIcon className="w-10 h-10" />
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white leading-none transition-colors">NexaFya</h1>
-              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest transition-colors">Health</span>
+        <div className="h-full flex flex-col">
+          {/* Logo Section - Cleaner */}
+          <div className="p-6 border-b border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <LogoIcon className="w-10 h-10" />
+              <div>
+                <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white leading-none">NexaFya</h1>
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Health</span>
+              </div>
             </div>
           </div>
 
-          {/* Nav Items */}
-          <nav className="flex-1 space-y-2">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setCurrentView(item.id);
-                  setIsSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group relative ${
-                  currentView === item.id 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' 
-                    : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 dark:text-gray-400'
-                }`}
-              >
-                <item.icon size={22} className={`transition-transform duration-300 ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
-                <span className="font-bold text-sm">{item.label}</span>
-                {currentView === item.id && (
-                  <div className="absolute right-4 w-2 h-2 bg-white rounded-full"></div>
-                )}
-              </button>
-            ))}
+          {/* Nav Items - Better Spacing */}
+          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+            {navItems.map((item, index) => {
+              const isActive = currentView === item.id;
+              const isFirstInGroup = index === 0 || (index > 0 && navItems[index - 1].id === 'dashboard' && item.id !== 'dashboard');
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setCurrentView(item.id);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30' 
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
+                  } ${isFirstInGroup && index > 0 ? 'mt-4' : ''}`}
+                >
+                  <item.icon 
+                    size={20} 
+                    className={`transition-all duration-200 ${
+                      isActive ? 'scale-110' : 'group-hover:scale-110'
+                    }`} 
+                  />
+                  <span className="font-bold text-sm flex-1 text-left">{item.label}</span>
+                  {isActive && (
+                    <div className="absolute right-3 w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
-          {/* Bottom Card (Logout) */}
-          <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-             <button 
-                onClick={onLogout}
-                className="w-full flex items-center gap-4 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors font-bold text-sm"
-             >
-                <LogOut size={20} />
-                Logout
-             </button>
+          {/* Bottom Section - Cleaner */}
+          <div className="p-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/30">
+            <button 
+              onClick={onLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200 font-bold text-sm group"
+            >
+              <LogOut size={18} className="group-hover:scale-110 transition-transform" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -231,27 +243,27 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         
-        {/* Top Bar */}
-        <header className="bg-white dark:bg-[#0F172A] border-b border-gray-200 dark:border-gray-700/50 h-20 flex items-center justify-between px-6 lg:px-10 z-30 transition-colors duration-300">
+        {/* Top Bar - Enhanced */}
+        <header className="bg-white dark:bg-[#0F172A] border-b border-gray-200 dark:border-gray-700/50 h-16 md:h-20 flex items-center justify-between px-4 md:px-6 lg:px-8 z-30 transition-colors duration-300 shadow-sm">
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
             >
-              <Menu size={24} />
+              <Menu size={22} />
             </button>
             
-            <div className="hidden md:block">
+            <div className="hidden md:block flex-1 max-w-2xl">
                {/* Global Search Integration */}
                <GlobalSearch onNavigate={setCurrentView} />
             </div>
           </div>
 
-          <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-2 md:gap-4">
             <button 
                 onClick={toggleTheme}
-                className="p-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors duration-300"
+                className="p-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 hover:scale-110"
                 title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -260,11 +272,11 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="relative">
               <button 
                 onClick={() => setIsNotificationMenuOpen(!isNotificationMenuOpen)}
-                className="relative p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                className="relative p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 hover:scale-110"
               >
                 <Bell size={20} />
                 {unreadNotificationCount > 0 && (
-                  <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 animate-pulse">
                     {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
                 )}
@@ -274,18 +286,18 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="relative">
               <button 
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                className="flex items-center gap-2 md:gap-3 pl-1.5 md:pl-2 pr-1 py-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 hover:scale-105"
               >
                 <img 
                   src={user.avatar} 
                   alt={user.name} 
-                  className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+                  className="w-8 h-8 md:w-9 md:h-9 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 ring-2 ring-transparent hover:ring-blue-500 transition-all"
                 />
                 <div className="hidden md:block text-left">
                     <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user.name}</p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">{role}</p>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mt-0.5">{role}</p>
                 </div>
-                <ChevronDown size={16} className="text-gray-400 mr-2" />
+                <ChevronDown size={16} className="text-gray-400 dark:text-gray-500 mr-1 md:mr-2 transition-transform duration-200" style={{ transform: isProfileMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
               </button>
 
               {/* Profile Dropdown */}
@@ -369,9 +381,11 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        {/* Content Scroll Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F3F4F6] dark:bg-[#0A0F1C] p-4 lg:p-8 transition-colors duration-300 pb-20 md:pb-8">
-           {children}
+        {/* Content Scroll Area - Better Spacing with Safe Area */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F3F4F6] dark:bg-[#0A0F1C] p-4 md:p-6 lg:p-8 transition-colors duration-300 pb-28 md:pb-8" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}>
+           <div className="max-w-7xl mx-auto">
+             {children}
+           </div>
         </main>
       </div>
 
