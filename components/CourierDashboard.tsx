@@ -5,6 +5,8 @@ import { MapPin, Navigation, Package, CheckCircle, Clock, DollarSign, Bike, Smar
 import { useNotification } from './NotificationSystem';
 import { MapComponent } from './MapComponent';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db as firestore } from '../lib/firebase';
 
 interface CourierDashboardProps {
   user: User;
@@ -21,7 +23,9 @@ const EARNINGS_DATA = [
     { day: 'Sun', amount: 20000 },
 ];
 
-export const CourierDashboard: React.FC<CourierDashboardProps> = ({ user, initialTab = 'dashboard' }) => {
+export const CourierDashboard: React.FC<CourierDashboardProps> = ({ user: propUser, initialTab = 'dashboard' }) => {
+  const { user: authUser } = useAuth();
+  const user = authUser || propUser; // Use auth user if available, fallback to prop
   const { notify } = useNotification();
   const [activeView, setActiveView] = useState(initialTab);
   const [isOnline, setIsOnline] = useState(false);
@@ -56,9 +60,25 @@ export const CourierDashboard: React.FC<CourierDashboardProps> = ({ user, initia
       notify(isOnline ? 'You are now offline.' : 'You are now online and visible to pharmacies.', isOnline ? 'info' : 'success');
   };
 
-  const handleAcceptJob = (job: any) => {
+  const handleAcceptJob = async (job: any) => {
+      try {
+          // Update order in Firestore
+          if (job.orderId && firestore) {
+              const orderRef = doc(firestore, 'orders', job.orderId);
+              await updateDoc(orderRef, {
+                  courier_id: user.id,
+                  courier_name: user.name,
+                  status: 'PROCESSING',
+                  updated_at: serverTimestamp(),
+                  updatedAt: serverTimestamp()
+              });
+          }
       setActiveDelivery({ ...job, status: 'Picking Up' });
       notify('Job Accepted! Proceed to pickup location.', 'success');
+      } catch (error) {
+          console.error('Failed to accept job:', error);
+          notify('Failed to accept job. Please try again.', 'error');
+      }
   };
 
   const handleGetDirections = () => {
@@ -74,29 +94,72 @@ export const CourierDashboard: React.FC<CourierDashboardProps> = ({ user, initia
       setShowPodModal(true);
   };
 
-  const confirmDelivery = () => {
+  const confirmDelivery = async () => {
       if (podMethod === 'otp' && deliveryOtp.length < 4) {
           notify('Please enter the 4-digit OTP provided by the customer.', 'error');
           return;
       }
       
+      if (!activeDelivery?.orderId) {
+          notify('Order ID missing. Cannot complete delivery.', 'error');
+          return;
+      }
+      
       setIsVerifying(true);
-      setTimeout(() => {
+      try {
+          // Update order status to DELIVERED
+          if (firestore) {
+              const orderRef = doc(firestore, 'orders', activeDelivery.orderId);
+              await updateDoc(orderRef, {
+                  status: 'DELIVERED',
+                  delivery_status: 'DELIVERED',
+                  delivered_at: serverTimestamp(),
+                  delivery_otp: podMethod === 'otp' ? deliveryOtp : null,
+                  delivery_proof: {
+                      method: podMethod,
+                      verifiedAt: new Date().toISOString(),
+                      courierId: user.id
+                  },
+                  updated_at: serverTimestamp(),
+                  updatedAt: serverTimestamp()
+              });
+          }
+          
           setIsVerifying(false);
           setShowPodModal(false);
           setDeliveryOtp('');
           setActiveDelivery(null);
-          notify('Proof of Delivery Verified! Earnings added to wallet.', 'success');
-      }, 1500);
+          notify('Proof of Delivery Verified! Order marked as delivered.', 'success');
+      } catch (error) {
+          console.error('Failed to confirm delivery:', error);
+          notify('Failed to confirm delivery. Please try again.', 'error');
+          setIsVerifying(false);
+      }
   };
 
-  const updateDeliveryStatus = () => {
-      if (!activeDelivery) return;
-      if (activeDelivery.status === 'Picking Up') {
-          setActiveDelivery({ ...activeDelivery, status: 'In Transit' });
-          notify('Package collected. Start delivery.', 'info');
-      } else if (activeDelivery.status === 'In Transit') {
-          initiateCompletion();
+  const updateDeliveryStatus = async () => {
+      if (!activeDelivery || !activeDelivery.orderId) return;
+      
+      try {
+          if (activeDelivery.status === 'Picking Up') {
+              // Update to In Transit
+              if (firestore) {
+                  const orderRef = doc(firestore, 'orders', activeDelivery.orderId);
+                  await updateDoc(orderRef, {
+                      status: 'DISPATCHED',
+                      dispatched_at: serverTimestamp(),
+                      updated_at: serverTimestamp(),
+                      updatedAt: serverTimestamp()
+                  });
+              }
+              setActiveDelivery({ ...activeDelivery, status: 'In Transit' });
+              notify('Package collected. Start delivery.', 'info');
+          } else if (activeDelivery.status === 'In Transit') {
+              initiateCompletion();
+          }
+      } catch (error) {
+          console.error('Failed to update delivery status:', error);
+          notify('Failed to update status. Please try again.', 'error');
       }
   };
 

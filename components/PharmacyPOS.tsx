@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Medicine, CartItem } from '../types';
 import { db } from '../services/db';
+import { paymentService } from '../services/paymentService';
 import { useNotification } from './NotificationSystem';
 import { EmptyState } from './EmptyState';
 import { SkeletonLoader } from './SkeletonLoader';
@@ -120,6 +121,23 @@ export const PharmacyPOS: React.FC<PharmacyPOSProps> = ({ user }) => {
     return calculateSubtotal() + calculateTax();
   };
 
+  const mapPosMethodToProvider = (method: typeof paymentMethod) => {
+    switch (method) {
+      case 'MPESA':
+        return 'mpesa' as const;
+      case 'TIGO_PESA':
+        return 'tigopesa' as const;
+      case 'AIRTEL_MONEY':
+        return 'airtel' as const;
+      case 'CARD':
+        return 'stripe' as const;
+      case 'CASH':
+        return 'cash' as const;
+      default:
+        return 'cash' as const;
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       notify('Cart is empty', 'warning');
@@ -128,32 +146,55 @@ export const PharmacyPOS: React.FC<PharmacyPOSProps> = ({ user }) => {
 
     setProcessing(true);
     try {
-      // Process payment (integrate with payment service)
+      // Process payment consistently via paymentService
+      const grandTotal = calculateGrandTotal();
+      const provider = mapPosMethodToProvider(paymentMethod);
+
+      const paymentResult = await paymentService.processPayment({
+        amount: grandTotal,
+        currency: 'TZS',
+        provider,
+        userId: user?.id || '',
+        userName: user?.name || 'Pharmacy',
+        description: `POS sale (${cart.length} item${cart.length === 1 ? '' : 's'})`,
+        itemType: 'medicine',
+        metadata: {
+          pos: true,
+          customerId: selectedCustomer || null,
+          paymentMethod,
+        }
+      });
+
+      if (!paymentResult.success) {
+        throw new Error(paymentResult.error || 'Payment failed');
+      }
+
       const orderData = {
+        patient_id: selectedCustomer || 'walk-in',
+        patient_name: selectedCustomer ? 'Customer' : 'Walk-in Customer',
+        pharmacy_id: user?.id || '',
+        pharmacy_name: user?.name || 'Pharmacy',
         items: cart.map(item => ({
-          medicineId: item.id,
+          inventory_id: item.id,
+          medicine_id: item.id,
           name: item.name,
           quantity: item.quantity,
           price: item.price,
-          total: item.price * item.quantity,
         })),
-        customerId: selectedCustomer || null,
-        paymentMethod,
         subtotal: calculateSubtotal(),
         tax: calculateTax(),
-        total: calculateGrandTotal(),
-        pharmacyId: user.id,
+        total: grandTotal,
+        total_amount: grandTotal,
+        payment_method: paymentMethod.toLowerCase(),
+        payment_status: paymentResult.requiresVerification ? 'PENDING' : 'COMPLETED',
+        transaction_id: paymentResult.transactionId || '',
+        reference_number: paymentResult.referenceNumber || '',
         status: 'COMPLETED',
-        createdAt: new Date().toISOString(),
+        channel: 'POS',
       };
 
       // Save order to database
       await db.createOrder?.(orderData);
-
-      // Update inventory
-      for (const item of cart) {
-        await db.updateMedicineStock?.(item.id, item.quantity);
-      }
 
       notify('Sale completed successfully!', 'success', {
         action: {

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Smartphone, Building2, Shield, CheckCircle, Loader2, Zap, Copy, Check, User, FileText } from 'lucide-react';
+import { X, CreditCard, Smartphone, Building2, Shield, CheckCircle, Loader2, Zap, Copy, Check, User, FileText, ArrowRight } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
@@ -244,66 +244,79 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-300 overflow-y-auto">
-      <div className="bg-white dark:bg-[#0A1B2E] w-full max-w-md rounded-2xl sm:rounded-[2rem] shadow-2xl relative overflow-hidden animate-in zoom-in-95 my-auto">
-        <button 
-          onClick={onClose} 
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-gray-100 dark:bg-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-500 z-10"
-        >
-          <X size={18} className="sm:w-5 sm:h-5" />
-        </button>
-
-        <div className="p-4 sm:p-6 md:p-8 max-h-[90vh] overflow-y-auto">
-          <div className="text-center mb-4 sm:mb-6">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-nexafya-blue/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-              <CreditCard className="text-nexafya-blue sm:w-8 sm:h-8" size={24} />
+      <div className="bg-white dark:bg-[#0F172A] w-full max-w-lg rounded-3xl shadow-2xl relative overflow-hidden animate-in zoom-in-95 my-auto border border-gray-200/50 dark:border-gray-700/50">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-6 sm:p-8 pb-8 sm:pb-10 relative">
+          <button 
+            onClick={onClose} 
+            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white z-10 backdrop-blur-sm"
+          >
+            <X size={20} />
+          </button>
+          
+          <div className="text-center mt-2">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <CreditCard className="text-white w-8 h-8" size={32} />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-800 mb-1 sm:mb-2">Complete Payment</h2>
-            <p className="text-gray-500 text-xs sm:text-sm px-2">{description}</p>
-            <p className="text-2xl sm:text-3xl font-bold text-nexafya-blue mt-3 sm:mt-4">
-              {currency === 'TZS' ? 'TZS' : '$'} {amount.toLocaleString()}
-            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Complete Payment</h2>
+            <p className="text-blue-100 text-sm sm:text-base mb-4">{description}</p>
+            <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 border border-white/30 inline-block">
+              <p className="text-3xl sm:text-4xl font-bold text-white">
+                {currency === 'TZS' ? 'TZS' : '$'} {amount.toLocaleString()}
+              </p>
+            </div>
           </div>
+        </div>
+
+        <div className="p-6 sm:p-8 max-h-[calc(90vh-200px)] overflow-y-auto bg-gradient-to-b from-white to-gray-50/50 dark:from-[#0F172A] dark:to-gray-900/50">
 
           {/* Recipient Payment Details */}
           {recipientId && recipientInfo && (
-            <div className="mb-4 sm:mb-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border-2 border-blue-200 dark:border-blue-800/50">
-              <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                <User size={16} className="sm:w-[18px] sm:h-[18px] text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white">
-                  Pay to: <span className="break-words">{recipientInfo.name}</span> ({recipientInfo.role === 'DOCTOR' ? 'Doctor' : 'Pharmacy'})
-                </h3>
+            <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-5 sm:p-6 border border-blue-200 dark:border-blue-800/50 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <User size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-base text-gray-900 dark:text-white mb-1">
+                    Pay to: {recipientInfo.name}
+                  </h3>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                    {recipientInfo.role === 'DOCTOR' ? 'Doctor' : 'Pharmacy'}
+                  </p>
+                </div>
               </div>
               
               {loadingRecipient ? (
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                  <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
-                  Loading payment details...
+                <div className="flex items-center justify-center gap-3 py-6 bg-white dark:bg-[#0F172A] rounded-xl border border-gray-200 dark:border-gray-700">
+                  <Loader2 size={18} className="animate-spin text-blue-600" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Loading payment details...</span>
                 </div>
               ) : recipientPaymentMethods.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-400 uppercase mb-2">
-                    Available Payment Methods:
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                    Available Payment Methods
                   </p>
                   {recipientPaymentMethods.map((pm) => (
-                    <div key={pm.id} className="bg-white dark:bg-[#0F172A] rounded-lg sm:rounded-xl p-2 sm:p-3 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between gap-2">
+                    <div key={pm.id} className="bg-white dark:bg-[#0F172A] rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-xs sm:text-sm text-gray-900 dark:text-white truncate">{pm.provider}</p>
-                          <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 break-words">
-                            <span className="font-mono">{pm.number}</span>
+                          <p className="font-bold text-sm text-gray-900 dark:text-white mb-1">{pm.provider}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 break-words">
+                            <span className="font-mono font-semibold">{pm.number}</span>
                             {pm.name && <span> • {pm.name}</span>}
                             {pm.bankName && <span> • {pm.bankName}</span>}
                           </p>
                         </div>
                         <button
                           onClick={() => copyToClipboard(pm.number, `pm-${pm.id}`)}
-                          className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                          className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors flex-shrink-0 border border-gray-200 dark:border-gray-700"
                           title="Copy payment number"
                         >
                           {copiedField === `pm-${pm.id}` ? (
-                            <Check size={14} className="sm:w-4 sm:h-4 text-green-600" />
+                            <Check size={16} className="text-green-600" />
                           ) : (
-                            <Copy size={14} className="sm:w-4 sm:h-4 text-gray-500" />
+                            <Copy size={16} className="text-gray-400" />
                           )}
                         </button>
                       </div>
@@ -311,9 +324,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                  Payment methods will be shown after you select a payment method.
-                </p>
+                <div className="bg-white dark:bg-[#0F172A] rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Payment methods will be shown after you select a payment method.
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -428,27 +443,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
-          <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
-            <label className="block text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-600 mb-2">
+          <div className="space-y-4 mb-6">
+            <label className="block text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <CreditCard size={16} className="text-blue-600 dark:text-blue-400" />
               Select Payment Method
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {paymentMethods.map((method) => {
                 const Icon = method.icon;
+                const isSelected = selectedMethod === method.id;
                 return (
                   <button
                     key={method.id}
                     onClick={() => setSelectedMethod(method.id)}
-                    className={`p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl border-2 transition-all ${
-                      selectedMethod === method.id
-                        ? 'border-nexafya-blue bg-nexafya-blue/10'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                    className={`group relative p-4 rounded-2xl border-2 transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                      isSelected
+                        ? 'border-blue-600 dark:border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 shadow-lg shadow-blue-500/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0F172A] hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md'
                     }`}
                   >
-                    <Icon className={`mx-auto mb-1 sm:mb-2 sm:w-6 sm:h-6 ${selectedMethod === method.id ? 'text-nexafya-blue' : method.color}`} size={20} />
-                    <p className={`text-[10px] sm:text-xs font-bold leading-tight ${selectedMethod === method.id ? 'text-nexafya-blue' : 'text-gray-600 dark:text-gray-600'}`}>
+                    <div className={`w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center transition-all ${
+                      isSelected 
+                        ? 'bg-blue-600 dark:bg-blue-500 shadow-lg shadow-blue-500/30' 
+                        : `bg-gray-100 dark:bg-gray-800 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20`
+                    }`}>
+                      <Icon className={`${isSelected ? 'text-white' : method.color} transition-colors`} size={20} />
+                    </div>
+                    <p className={`text-xs font-bold leading-tight transition-colors ${
+                      isSelected 
+                        ? 'text-blue-700 dark:text-blue-300' 
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
                       {method.name}
                     </p>
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 w-5 h-5 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                        <Check size={12} className="text-white" />
+                      </div>
+                    )}
                   </button>
                 );
               })}
@@ -456,23 +488,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
 
           {(selectedMethod === 'mpesa_stk' || selectedMethod === 'mpesa' || selectedMethod === 'tigopesa' || selectedMethod === 'airtel') && (
-            <div className="mb-3 sm:mb-4">
-              <label className="block text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-600 mb-1.5 sm:mb-2">
-                Phone Number {selectedMethod === 'mpesa_stk' ? '(for STK Push)' : ''}
+            <div className="mb-4 bg-white dark:bg-[#0F172A] rounded-2xl p-4 border border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Smartphone size={16} className="text-blue-600 dark:text-blue-400" />
+                Phone Number {selectedMethod === 'mpesa_stk' && <span className="text-xs text-blue-600 dark:text-blue-400">(for STK Push)</span>}
               </label>
               <input
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                 placeholder="255712345678"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-xl border-2 border-gray-200 dark:border-gray-600 focus:border-nexafya-blue focus:ring-2 sm:focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                className="w-full px-4 py-3.5 text-base rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 focus:border-blue-600 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 outline-none transition-all font-mono"
               />
             </div>
           )}
 
           {selectedMethod === 'bank' && (
-            <div className="mb-3 sm:mb-4">
-              <label className="block text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-600 mb-1.5 sm:mb-2">
+            <div className="mb-4 bg-white dark:bg-[#0F172A] rounded-2xl p-4 border border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Building2 size={16} className="text-blue-600 dark:text-blue-400" />
                 Account Number
               </label>
               <input
@@ -480,7 +514,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="Enter account number"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-xl border-2 border-gray-200 dark:border-gray-600 focus:border-nexafya-blue focus:ring-2 sm:focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                className="w-full px-4 py-3.5 text-base rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 focus:border-blue-600 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 outline-none transition-all"
               />
             </div>
           )}

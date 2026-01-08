@@ -14,7 +14,8 @@ export type PaymentProvider =
   | 'tigopesa' 
   | 'airtel' 
   | 'lipanamba' 
-  | 'bank';
+  | 'bank'
+  | 'cash';
 
 export interface PaymentRequest {
   amount: number;
@@ -44,9 +45,9 @@ class PaymentService {
    * Process payment based on provider
    */
   async processPayment(request: PaymentRequest): Promise<PaymentResponse> {
-    try {
-      // Create transaction record
-      const transactionRef = await addDoc(collection(firestore, 'transactions'), cleanFirestoreData({
+    // Create transaction record first so we can always return a transactionId,
+    // even if the provider handler fails.
+    const transactionRef = await addDoc(collection(firestore, 'transactions'), cleanFirestoreData({
         userId: request.userId,
         userName: request.userName,
         amount: request.amount,
@@ -63,32 +64,73 @@ class PaymentService {
         updatedAt: serverTimestamp(),
       }));
 
+    const transactionId = transactionRef.id;
+
+    try {
       // Route to appropriate payment handler
       switch (request.provider) {
         case 'stripe':
-          return await this.processStripe(request, transactionRef.id);
+          return await this.processStripe(request, transactionId);
         case 'paypal':
-          return await this.processPayPal(request, transactionRef.id);
+          return await this.processPayPal(request, transactionId);
         case 'mpesa':
-          return await this.processMPesa(request, transactionRef.id);
+          return await this.processMPesa(request, transactionId);
         case 'tigopesa':
-          return await this.processTigoPesa(request, transactionRef.id);
+          return await this.processTigoPesa(request, transactionId);
         case 'airtel':
-          return await this.processAirtelMoney(request, transactionRef.id);
+          return await this.processAirtelMoney(request, transactionId);
         case 'lipanamba':
-          return await this.processLipanamba(request, transactionRef.id);
+          return await this.processLipanamba(request, transactionId);
         case 'bank':
-          return await this.processBankTransfer(request, transactionRef.id);
+          return await this.processBankTransfer(request, transactionId);
+        case 'cash':
+          return await this.processCash(request, transactionId);
         default:
           throw new Error('Unsupported payment provider');
       }
     } catch (error: any) {
       console.error('Payment processing error:', error);
+      try {
+        await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+          status: 'FAILED',
+          error: error.message || 'Payment processing failed',
+          updatedAt: serverTimestamp(),
+        }));
+      } catch (e) {
+        console.error('Failed to mark transaction as FAILED:', e);
+      }
       return {
         success: false,
+        transactionId,
         error: error.message || 'Payment processing failed',
       };
     }
+  }
+
+  /**
+   * Cash Payment (immediate completion)
+   */
+  private async processCash(
+    request: PaymentRequest,
+    transactionId: string
+  ): Promise<PaymentResponse> {
+    await updateDoc(doc(firestore, 'transactions', transactionId), cleanFirestoreData({
+      status: 'COMPLETED',
+      referenceNumber: `CASH-${Date.now()}`,
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      metadata: {
+        ...(request.metadata || {}),
+        cash: true,
+      }
+    }));
+
+    return {
+      success: true,
+      transactionId,
+      referenceNumber: `CASH-${Date.now()}`,
+      message: 'Payment recorded as cash',
+    };
   }
 
   /**

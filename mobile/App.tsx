@@ -134,7 +134,7 @@ export default function App() {
               <View style={styles.docAvatar}><Ionicons name="person" size={24} color="#CBD5E1"/></View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.docName}>{appointments[0].doctor?.name}</Text>
-                <Text style={styles.docSpec}>{appointments[0].consultation_type} Consultation</Text>
+                <Text style={styles.docSpec}>{appointments[0].consultation_type || 'General'} Consultation</Text>
               </View>
               <TouchableOpacity style={styles.videoIcon} onPress={() => Alert.alert("Video", "Launching Nexa-Meet...")}>
                 <Ionicons name="videocam" size={20} color="#FFF" />
@@ -175,7 +175,11 @@ export default function App() {
         <TouchableOpacity style={styles.notifButton}><Ionicons name="notifications" size={24} color="#333" /></TouchableOpacity>
       </View>
 
-      {currentTab === 'Home' ? renderHome() : <View style={styles.center}><Text>Module: {currentTab}</Text></View>}
+      {currentTab === 'Home' ? renderHome() : (
+        <View style={styles.center}>
+          <Text style={styles.moduleText}>{currentTab} module coming soon</Text>
+        </View>
+      )}
 
       <View style={styles.bottomNav}>
          {['Home', 'Visits', 'Chat', 'Profile'].map(t => (
@@ -221,5 +225,9 @@ const styles = StyleSheet.create({
   authTitle: { fontSize: 24, fontWeight: 'bold', marginTop: 24 },
   authDesc: { textAlign: 'center', color: '#64748B', marginTop: 12, lineHeight: 20 },
   refreshBtn: { marginTop: 32, backgroundColor: '#0066CC', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16 },
-  refreshBtnText: { color: '#FFF', fontWeight: 'bold' }
+  refreshBtnText: { color: '#FFF', fontWeight: 'bold' },
+  emptyCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 40, alignItems: 'center', justifyContent: 'center', elevation: 1 },
+  emptyText: { color: '#64748B', fontSize: 14, textAlign: 'center' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  moduleText: { fontSize: 16, color: '#64748B', textAlign: 'center' }
 });

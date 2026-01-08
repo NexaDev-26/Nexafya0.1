@@ -57,17 +57,32 @@ export const firebaseDb = {
   getDoctors: async (): Promise<Doctor[]> => {
     try {
       const doctorsRef = firestoreCollection(firestore, 'doctors');
-      // Only fetch verified and active doctors
-      const querySnapshot = await getDocs(query(
-        doctorsRef, 
-        where('verificationStatus', '==', 'Verified'),
-        where('isActive', '==', true),
-        orderBy('rating', 'desc')
-      ));
+      // Fetch all doctors (not just verified) to include newly registered ones
+      let querySnapshot;
+      try {
+        // Try to fetch with orderBy first
+        querySnapshot = await getDocs(query(doctorsRef, orderBy('rating', 'desc')));
+      } catch (orderByError: any) {
+        // If orderBy fails (missing index), fetch without it
+        console.warn('OrderBy failed, fetching without sorting:', orderByError);
+        querySnapshot = await getDocs(doctorsRef);
+      }
       
-      return querySnapshot.docs.map((doc) => {
+      // Also fetch doctors from users collection who don't have a doctors document yet
+      const usersRef = firestoreCollection(firestore, 'users');
+      const usersQuery = query(usersRef, where('role', '==', 'DOCTOR'));
+      const usersSnapshot = await getDocs(usersQuery);
+      
+      // Create a map of existing doctor IDs
+      const existingDoctorIds = new Set(querySnapshot.docs.map(doc => doc.id));
+      
+      // Combine doctors from both collections
+      const allDoctors = new Map<string, any>();
+      
+      // Add doctors from doctors collection
+      querySnapshot.docs.forEach((doc) => {
         const data = doc.data();
-        return {
+        allDoctors.set(doc.id, {
           id: doc.id,
           name: data.name || 'Doctor',
           role: UserRole.DOCTOR,
@@ -87,26 +102,73 @@ export const firebaseDb = {
           bio: data.bio || '',
           workplace: data.workplace || data.hospital || data.clinic || undefined,
           yearsOfExperience: data.experienceYears || data.experience_years || data.experience || 0,
-          verificationStatus: data.verificationStatus || undefined,
+          verificationStatus: data.verificationStatus || 'Unverified',
           medicalLicenseNumber: data.medicalLicenseNumber || data.licenseNumber || undefined,
           medicalCouncilRegistration: data.medicalCouncilRegistration || data.councilRegistration || undefined,
           isActive: data.isActive !== false,
-        };
+        });
+      });
+      
+      // Add doctors from users collection who don't have a doctors document
+      usersSnapshot.docs.forEach((doc) => {
+        if (!existingDoctorIds.has(doc.id)) {
+          const data = doc.data();
+          allDoctors.set(doc.id, {
+            id: doc.id,
+            name: data.name || 'Doctor',
+            role: UserRole.DOCTOR,
+            avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'Doctor')}&background=random&size=200`,
+            email: data.email || '',
+            phone: data.phone || '',
+            location: data.location || 'Tanzania',
+            specialty: data.specialty || 'General Practitioner',
+            rating: 5.0, // Default rating
+            price: 0, // Default price
+            experience: 0, // Default experience
+            availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            trustTier: undefined,
+            isTrusted: false,
+            canVerifyArticles: false,
+            points: data.points || 0,
+            bio: '',
+            workplace: undefined,
+            yearsOfExperience: 0,
+            verificationStatus: 'Unverified', // New doctors start as unverified
+            medicalLicenseNumber: undefined,
+            medicalCouncilRegistration: undefined,
+            isActive: true, // Default to active
+          });
+        }
+      });
+      
+      // Convert map to array and sort by rating (verified first, then by rating)
+      return Array.from(allDoctors.values()).sort((a, b) => {
+        // Verified doctors first
+        if (a.verificationStatus === 'Verified' && b.verificationStatus !== 'Verified') return -1;
+        if (a.verificationStatus !== 'Verified' && b.verificationStatus === 'Verified') return 1;
+        // Then by rating
+        return b.rating - a.rating;
       });
     } catch (e) {
       console.error("DB: Failed to fetch doctors", e);
       // Fallback: fetch all and filter client-side if Firestore query fails (e.g., missing index)
       try {
         const doctorsRef = firestoreCollection(firestore, 'doctors');
-        const allDocs = await getDocs(query(doctorsRef, orderBy('rating', 'desc')));
-        return allDocs.docs
-          .filter(doc => {
-            const data = doc.data();
-            return data.verificationStatus === 'Verified' && data.isActive !== false;
-          })
-          .map((doc) => {
-            const data = doc.data();
-            return {
+        const allDocs = await getDocs(doctorsRef);
+        
+        // Also fetch from users collection
+        const usersRef = firestoreCollection(firestore, 'users');
+        const usersQuery = query(usersRef, where('role', '==', 'DOCTOR'));
+        const usersSnapshot = await getDocs(usersQuery);
+        
+        const existingDoctorIds = new Set(allDocs.docs.map(doc => doc.id));
+        const allDoctors = new Map<string, any>();
+        
+        // Add doctors from doctors collection
+        allDocs.docs.forEach((doc) => {
+          const data = doc.data();
+          if (data.isActive !== false) {
+            allDoctors.set(doc.id, {
               id: doc.id,
               name: data.name || 'Doctor',
               role: UserRole.DOCTOR,
@@ -126,12 +188,51 @@ export const firebaseDb = {
               bio: data.bio || '',
               workplace: data.workplace || data.hospital || data.clinic || undefined,
               yearsOfExperience: data.experienceYears || data.experience_years || data.experience || 0,
-              verificationStatus: data.verificationStatus || undefined,
+              verificationStatus: data.verificationStatus || 'Unverified',
               medicalLicenseNumber: data.medicalLicenseNumber || data.licenseNumber || undefined,
               medicalCouncilRegistration: data.medicalCouncilRegistration || data.councilRegistration || undefined,
               isActive: data.isActive !== false,
-            };
-          });
+            });
+          }
+        });
+        
+        // Add doctors from users collection
+        usersSnapshot.docs.forEach((doc) => {
+          if (!existingDoctorIds.has(doc.id)) {
+            const data = doc.data();
+            allDoctors.set(doc.id, {
+              id: doc.id,
+              name: data.name || 'Doctor',
+              role: UserRole.DOCTOR,
+              avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'Doctor')}&background=random&size=200`,
+              email: data.email || '',
+              phone: data.phone || '',
+              location: data.location || 'Tanzania',
+              specialty: data.specialty || 'General Practitioner',
+              rating: 5.0,
+              price: 0,
+              experience: 0,
+              availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+              trustTier: undefined,
+              isTrusted: false,
+              canVerifyArticles: false,
+              points: data.points || 0,
+              bio: '',
+              workplace: undefined,
+              yearsOfExperience: 0,
+              verificationStatus: 'Unverified',
+              medicalLicenseNumber: undefined,
+              medicalCouncilRegistration: undefined,
+              isActive: true,
+            });
+          }
+        });
+        
+        return Array.from(allDoctors.values()).sort((a, b) => {
+          if (a.verificationStatus === 'Verified' && b.verificationStatus !== 'Verified') return -1;
+          if (a.verificationStatus !== 'Verified' && b.verificationStatus === 'Verified') return 1;
+          return b.rating - a.rating;
+        });
       } catch (fallbackError) {
         console.error("DB: Fallback fetch failed", fallbackError);
         return [];
@@ -1943,19 +2044,9 @@ export const firebaseDb = {
     try {
       // Use transaction to ensure atomicity
       return await runTransaction(firestore, async (transaction) => {
-        // 1. Create order document
-        const ordersRef = firestoreCollection(firestore, 'orders');
-        const orderRef = doc(ordersRef);
+        // PHASE 1: Read all inventory items first (all reads must happen before writes)
+        const inventoryUpdates: Array<{ ref: any; newStock: number }> = [];
         
-        transaction.set(orderRef, cleanFirestoreData({
-          ...order,
-          createdAt: serverTimestamp(),
-          created_at: serverTimestamp(),
-          updated_at: serverTimestamp(),
-          status: order.status || 'PENDING',
-        }));
-        
-        // 2. Update inventory for each item (atomic)
         if (order.items && Array.isArray(order.items)) {
           for (const item of order.items) {
             if (item.inventory_id) {
@@ -1976,19 +2067,180 @@ export const firebaseDb = {
                 throw new Error(`Insufficient stock for ${item.name || item.inventory_id}`);
               }
               
-              transaction.update(inventoryRef, {
-                stock: newStock,
-                updated_at: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+              inventoryUpdates.push({
+                ref: inventoryRef,
+                newStock: newStock
               });
             }
           }
+        }
+        
+        // PHASE 2: Now perform all writes (after all reads are complete)
+        // 1. Create order document
+        const ordersRef = firestoreCollection(firestore, 'orders');
+        const orderRef = doc(ordersRef);
+        
+        transaction.set(orderRef, cleanFirestoreData({
+          ...order,
+          createdAt: serverTimestamp(),
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          status: order.status || 'PENDING',
+        }));
+        
+        // 2. Update inventory for each item (atomic)
+        for (const { ref: inventoryRef, newStock } of inventoryUpdates) {
+          transaction.update(inventoryRef, {
+            stock: newStock,
+            updated_at: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
         }
         
         return orderRef.id;
       });
     } catch (e) {
       console.error("DB: Failed to create order", e);
+      throw e;
+    }
+  },
+
+  updateOrder: async (orderId: string, updates: any): Promise<void> => {
+    try {
+      const orderRef = doc(firestoreCollection(firestore, 'orders'), orderId);
+      await updateDoc(orderRef, cleanFirestoreData({
+        ...updates,
+        updated_at: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }));
+    } catch (e) {
+      console.error("DB: Failed to update order", e);
+      throw e;
+    }
+  },
+
+  cancelOrder: async (orderId: string, reason?: string): Promise<void> => {
+    try {
+      // Use transaction to restore inventory when cancelling
+      return await runTransaction(firestore, async (transaction) => {
+        const orderRef = doc(firestoreCollection(firestore, 'orders'), orderId);
+        const orderSnap = await transaction.get(orderRef);
+        
+        if (!orderSnap.exists()) {
+          throw new Error('Order not found');
+        }
+        
+        const orderData = orderSnap.data();
+        
+        // Only allow cancellation if order is PENDING or PROCESSING
+        if (orderData.status !== 'PENDING' && orderData.status !== 'PROCESSING') {
+          throw new Error('Cannot cancel order that is already dispatched or delivered');
+        }
+        
+        // PHASE 1: Read all inventory items to restore stock
+        const inventoryRestores: Array<{ ref: any; restoreQuantity: number }> = [];
+        
+        if (orderData.items && Array.isArray(orderData.items)) {
+          for (const item of orderData.items) {
+            if (item.inventory_id) {
+              const inventoryRef = doc(
+                firestoreCollection(firestore, 'inventory'),
+                item.inventory_id
+              );
+              const inventorySnap = await transaction.get(inventoryRef);
+              
+              if (inventorySnap.exists()) {
+                inventoryRestores.push({
+                  ref: inventoryRef,
+                  restoreQuantity: item.quantity || 0
+                });
+              }
+            }
+          }
+        }
+        
+        // PHASE 2: Update order and restore inventory
+        // 1. Update order status to CANCELLED
+        transaction.update(orderRef, cleanFirestoreData({
+          status: 'CANCELLED',
+          cancellation_reason: reason || 'Cancelled by patient',
+          cancelled_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }));
+        
+        // 2. Restore inventory for each item
+        for (const { ref: inventoryRef, restoreQuantity } of inventoryRestores) {
+          const currentData = (await transaction.get(inventoryRef)).data();
+          const currentStock = currentData?.stock || 0;
+          transaction.update(inventoryRef, {
+            stock: currentStock + restoreQuantity,
+            updated_at: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
+    } catch (e) {
+      console.error("DB: Failed to cancel order", e);
+      throw e;
+    }
+  },
+
+  deleteOrder: async (orderId: string): Promise<void> => {
+    try {
+      const orderRef = doc(firestoreCollection(firestore, 'orders'), orderId);
+      
+      // First check if order can be deleted (must be PENDING or CANCELLED)
+      const orderSnap = await getDoc(orderRef);
+      if (!orderSnap.exists()) {
+        throw new Error('Order not found');
+      }
+      
+      const orderData = orderSnap.data();
+      if (orderData.status !== 'PENDING' && orderData.status !== 'CANCELLED') {
+        throw new Error('Cannot delete order that is not pending or cancelled');
+      }
+      
+      // If order was PENDING, restore inventory using transaction
+      if (orderData.status === 'PENDING' && orderData.items && Array.isArray(orderData.items)) {
+        await runTransaction(firestore, async (transaction) => {
+          // PHASE 1: Read order and inventory items
+          const currentOrderSnap = await transaction.get(orderRef);
+          if (!currentOrderSnap.exists()) {
+            throw new Error('Order not found');
+          }
+          
+          const items = currentOrderSnap.data().items || [];
+          
+          // PHASE 2: Restore inventory for each item
+          for (const item of items) {
+            if (item.inventory_id) {
+              const inventoryRef = doc(
+                firestoreCollection(firestore, 'inventory'),
+                item.inventory_id
+              );
+              const inventorySnap = await transaction.get(inventoryRef);
+              
+              if (inventorySnap.exists()) {
+                const currentStock = inventorySnap.data().stock || 0;
+                transaction.update(inventoryRef, {
+                  stock: currentStock + (item.quantity || 0),
+                  updated_at: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+              }
+            }
+          }
+          
+          // PHASE 3: Delete order
+          transaction.delete(orderRef);
+        });
+      } else {
+        // Just delete if already cancelled
+        await deleteDoc(orderRef);
+      }
+    } catch (e) {
+      console.error("DB: Failed to delete order", e);
       throw e;
     }
   },

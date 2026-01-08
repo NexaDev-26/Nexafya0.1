@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { debounce } from 'lodash-es';
 import { Medicine, CartItem, UserRole, PharmacyBranch, SalesRecord, InventoryItem } from '../types';
-import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon, Menu } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, Store, X, ArrowRight, LayoutDashboard, Package, Truck, Scan, BarChart2, QrCode, MapPin, Save, Upload, RefreshCw, Check, AlertTriangle, Building2, FileText, Calendar, Shield, Clock, Star, Filter, Heart, TrendingUp, Award, Zap, CheckCircle2, Sparkles, Gift, CreditCard, Lock, RotateCcw, Eye, User as UserIcon, Menu, MessageSquare } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
 import { db } from '../services/db';
 import { useAuth } from '../contexts/AuthContext';
 import { orderSchema, validateAndSanitize, formatValidationError } from '../utils/validation';
 import { handleError, logger } from '../utils/errorHandler';
 import { useInventory } from '../hooks/useFirestore';
-import { updateDoc, doc, serverTimestamp, collection, getDocs, query, where, getDoc, onSnapshot } from 'firebase/firestore';
+import { updateDoc, doc, serverTimestamp, collection, getDocs, query, where, getDoc, onSnapshot, addDoc } from 'firebase/firestore';
 import { db as firestore } from '../lib/firebase';
 import { PharmacyInventory } from './PharmacyInventory';
 import { PharmacyPOS } from './PharmacyPOS';
@@ -25,6 +25,8 @@ import { InvoiceGenerator } from './InvoiceGenerator';
 import { StockAlerts } from './StockAlerts';
 import { SkeletonLoader } from './SkeletonLoader';
 import { PullToRefresh } from './PullToRefresh';
+import PaymentModal from './PaymentModal';
+import { generateWhatsAppOrderLink, sendOrderConfirmation } from '../services/whatsappService';
 
 export const Pharmacy: React.FC = memo(() => {
   const { user } = useAuth();
@@ -41,6 +43,8 @@ export const Pharmacy: React.FC = memo(() => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [sortBy, setSortBy] = useState<'default' | 'price-low' | 'price-high' | 'name' | 'popular'>('default');
   
@@ -150,7 +154,57 @@ export const Pharmacy: React.FC = memo(() => {
   }, []);
 
   // Order Details Modal - defined early to avoid hoisting issues
-  const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => (
+  const OrderDetailsModal = ({ order, onClose }: { order: any, onClose: () => void }) => {
+    const [availableCouriers, setAvailableCouriers] = useState<any[]>([]);
+    const [loadingCouriers, setLoadingCouriers] = useState(false);
+    const [showCourierSelect, setShowCourierSelect] = useState(false);
+    const [selectedCourierId, setSelectedCourierId] = useState<string | null>(order.courier_id || null);
+
+    // Load available couriers when modal opens
+    useEffect(() => {
+      const loadCouriers = async () => {
+        setLoadingCouriers(true);
+        try {
+          const couriersData = await db.getCouriers();
+          // Filter to show only Available or Busy couriers (not Offline)
+          const activeCouriers = couriersData.filter((c: any) => 
+            c.status === 'Available' || c.status === 'Busy'
+          );
+          setAvailableCouriers(activeCouriers);
+        } catch (error) {
+          console.error('Failed to load couriers:', error);
+          notify('Failed to load couriers', 'error');
+        } finally {
+          setLoadingCouriers(false);
+        }
+      };
+      
+      if (order.payment_status === 'PAID' && order.status === 'PROCESSING') {
+        loadCouriers();
+      }
+    }, [order.payment_status, order.status, notify]);
+
+    const handleAssignCourier = async (courierId: string) => {
+      try {
+        const orderRef = doc(firestore, 'orders', order.id);
+        await updateDoc(orderRef, {
+          courier_id: courierId,
+          courier_name: availableCouriers.find(c => c.id === courierId)?.name || 'Courier',
+          status: 'DISPATCHED',
+          dispatched_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        setSelectedCourierId(courierId);
+        setShowCourierSelect(false);
+        notify('Courier assigned and order dispatched!', 'success');
+        onClose();
+      } catch (error) {
+        handleError(error, notify);
+      }
+    };
+
+    return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in safe-area-inset-bottom">
       <div className="bg-white dark:bg-[#0F172A] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl relative mb-16 md:mb-0 pb-20 md:pb-6">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500">
@@ -223,6 +277,111 @@ export const Pharmacy: React.FC = memo(() => {
           </div>
         </div>
 
+        {/* Payment Status */}
+        {order.payment_status && (
+          <div className="mb-4">
+            <div className={`p-4 rounded-xl border-2 ${
+              order.payment_status === 'PROCESSING' || order.payment_status === 'PENDING_VERIFICATION' 
+                ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                : order.payment_status === 'PAID' || order.payment_status === 'COMPLETED'
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">Payment Status</p>
+                  <p className={`text-lg font-bold ${
+                    order.payment_status === 'PROCESSING' || order.payment_status === 'PENDING_VERIFICATION'
+                      ? 'text-yellow-700 dark:text-yellow-400'
+                      : order.payment_status === 'PAID' || order.payment_status === 'COMPLETED'
+                      ? 'text-green-700 dark:text-green-400'
+                      : 'text-red-700 dark:text-red-400'
+                  }`}>
+                    {order.payment_status === 'PENDING_VERIFICATION' ? 'Pending Verification' :
+                     order.payment_status === 'PROCESSING' ? 'Processing' :
+                     order.payment_status === 'PAID' ? 'Paid' :
+                     order.payment_status === 'COMPLETED' ? 'Completed' :
+                     order.payment_status}
+                  </p>
+                </div>
+                {(order.payment_status === 'PROCESSING' || order.payment_status === 'PENDING_VERIFICATION') && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const orderRef = doc(firestore, 'orders', order.id);
+                          await updateDoc(orderRef, {
+                            payment_status: 'PAID',
+                            status: 'PROCESSING',
+                            updated_at: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                          });
+                          
+                          // Update transaction if exists (with error handling)
+                          try {
+                            if (order.transaction_ref || order.transactionRef) {
+                              const transQuery = query(
+                                collection(firestore, 'transactions'),
+                                where('orderId', '==', order.id),
+                                where('referenceId', '==', (order.transaction_ref || order.transactionRef))
+                              );
+                              const transSnapshot = await getDocs(transQuery);
+                              if (!transSnapshot.empty) {
+                                await updateDoc(doc(firestore, 'transactions', transSnapshot.docs[0].id), {
+                                  status: 'COMPLETED',
+                                  completedAt: serverTimestamp(),
+                                  updatedAt: serverTimestamp()
+                                });
+                              }
+                            }
+                          } catch (transError) {
+                            console.warn('Failed to update transaction, continuing:', transError);
+                            // Don't fail the whole operation if transaction update fails
+                          }
+                          
+                          notify('Payment verified! Order status updated to Processing.', 'success');
+                          onClose();
+                        } catch (error) {
+                          handleError(error, notify);
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <CheckCircle2 size={18} />
+                      Verify Payment
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const reason = prompt('Please provide reason for rejection:');
+                        if (reason) {
+                          try {
+                            const orderRef = doc(firestore, 'orders', order.id);
+                            await updateDoc(orderRef, {
+                              payment_status: 'REJECTED',
+                              status: 'CANCELLED',
+                              rejection_reason: reason,
+                              updated_at: serverTimestamp(),
+                              updatedAt: serverTimestamp()
+                            });
+                            notify('Payment rejected. Order cancelled.', 'info');
+                            onClose();
+                          } catch (error) {
+                            handleError(error, notify);
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <X size={18} />
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Order Summary */}
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
           <div className="flex justify-between items-center mb-2">
@@ -238,9 +397,115 @@ export const Pharmacy: React.FC = memo(() => {
             <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">TZS {order.total?.toLocaleString() || '0'}</span>
           </div>
         </div>
+
+        {/* Courier Assignment Section */}
+        {order.payment_status === 'PAID' && order.status === 'PROCESSING' && (
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            {order.courier_id || selectedCourierId ? (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Assigned Courier</p>
+                    <p className="font-bold text-gray-900 dark:text-white">
+                      {order.courier_name || availableCouriers.find(c => c.id === (order.courier_id || selectedCourierId))?.name || 'Courier'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCourierSelect(true)}
+                    className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"
+                  >
+                    Change
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <button
+                  onClick={() => setShowCourierSelect(true)}
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2"
+                >
+                  <Truck size={18} />
+                  Assign Courier & Dispatch
+                </button>
+              </div>
+            )}
+
+            {/* Courier Selection Modal */}
+            {showCourierSelect && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="bg-white dark:bg-[#0F172A] w-full max-w-md rounded-2xl shadow-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Select Courier</h3>
+                    <button
+                      onClick={() => setShowCourierSelect(false)}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {loadingCouriers ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="mx-auto animate-spin text-blue-600" size={32} />
+                      <p className="text-gray-500 dark:text-gray-400 mt-2">Loading couriers...</p>
+                    </div>
+                  ) : availableCouriers.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Truck className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+                      <p className="text-gray-500 dark:text-gray-400 font-medium mb-2">No couriers available</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">
+                        No registered couriers are currently available. Make sure couriers sign up with the COURIER role.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {availableCouriers.map((courier) => (
+                        <button
+                          key={courier.id}
+                          onClick={() => handleAssignCourier(courier.id)}
+                          disabled={courier.status !== 'Available'}
+                          className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                            courier.status === 'Available'
+                              ? 'border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
+                              : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0A1B2E] opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                <Truck size={20} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-gray-900 dark:text-white">{courier.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{courier.vehicle}</p>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              courier.status === 'Available'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                            }`}>
+                              {courier.status}
+                            </span>
+                          </div>
+                          {courier.currentLocation && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                              <MapPin size={12} /> {courier.currentLocation}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
-  );
+    );
+  };
 
   useEffect(() => {
       const loadData = async () => {
@@ -507,30 +772,30 @@ export const Pharmacy: React.FC = memo(() => {
                   
                   {/* Navigation Items - Enhanced */}
                   <nav className="space-y-1">
-                    {[
-                        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                        { id: 'orders', label: 'Orders', icon: Package },
-                        { id: 'pos', label: 'POS', icon: ShoppingCart },
-                        { id: 'inventory', label: 'Inventory', icon: Package },
-                        { id: 'stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
-                        { id: 'purchases', label: 'Purchases', icon: Truck },
-                        { id: 'suppliers', label: 'Suppliers', icon: Building2 },
-                        { id: 'sales', label: 'Sales', icon: BarChart2 },
-                        { id: 'invoices', label: 'Invoices', icon: FileText },
-                        { id: 'reports', label: 'Reports', icon: BarChart2 },
-                        { id: 'batch-expiry', label: 'Batch/Expiry', icon: Calendar },
-                        { id: 'unit-converter', label: 'Unit Converter', icon: ArrowRight },
-                        { id: 'prescriptions', label: 'Prescriptions', icon: QrCode },
-                        { id: 'branches', label: 'Branches', icon: Store },
+                  {[
+                      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                      { id: 'orders', label: 'Orders', icon: Package },
+                      { id: 'pos', label: 'POS', icon: ShoppingCart },
+                      { id: 'inventory', label: 'Inventory', icon: Package },
+                      { id: 'stock-alerts', label: 'Stock Alerts', icon: AlertTriangle },
+                      { id: 'purchases', label: 'Purchases', icon: Truck },
+                      { id: 'suppliers', label: 'Suppliers', icon: Building2 },
+                      { id: 'sales', label: 'Sales', icon: BarChart2 },
+                      { id: 'invoices', label: 'Invoices', icon: FileText },
+                      { id: 'reports', label: 'Reports', icon: BarChart2 },
+                      { id: 'batch-expiry', label: 'Batch/Expiry', icon: Calendar },
+                      { id: 'unit-converter', label: 'Unit Converter', icon: ArrowRight },
+                      { id: 'prescriptions', label: 'Prescriptions', icon: QrCode },
+                      { id: 'branches', label: 'Branches', icon: Store },
                     ].map(item => {
                       const isActive = mgmtTab === item.id;
                       return (
-                        <button 
-                            key={item.id} 
-                            onClick={() => {
-                              setMgmtTab(item.id as any);
-                              setIsMobileSidebarOpen(false); // Close mobile sidebar on selection
-                            }}
+                      <button 
+                          key={item.id} 
+                          onClick={() => {
+                            setMgmtTab(item.id as any);
+                            setIsMobileSidebarOpen(false); // Close mobile sidebar on selection
+                          }}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all duration-200 ${
                               isActive 
                                 ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md shadow-blue-600/30' 
@@ -542,7 +807,7 @@ export const Pharmacy: React.FC = memo(() => {
                             {isActive && (
                               <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                             )}
-                        </button>
+                      </button>
                       );
                     })}
                   </nav>
@@ -908,15 +1173,193 @@ export const Pharmacy: React.FC = memo(() => {
         return;
       }
       
+      // Store pending order data and show payment modal
+      setPendingOrderData(validation.data!);
+      setShowPaymentModal(true);
+      setShowCheckout(false);
+    } catch (error: any) {
+      handleError(error, notify, { userId: user.id, cartItems: cart.length });
+    }
+  };
+
+  // Complete order creation after payment success
+  const handlePaymentSuccess = async () => {
+    if (!pendingOrderData) return;
+    
+    try {
+      // Update payment status to PROCESSING since payment was submitted
+      const orderDataWithPayment = {
+        ...pendingOrderData,
+        payment_status: 'PROCESSING' // Payment submitted, awaiting verification
+      };
+      
       // Create order with validated data
-      await db.createOrder(validation.data!);
+      const orderId = await db.createOrder(orderDataWithPayment);
       setCart([]);
       setShowCart(false);
       setShowCheckout(false);
-      notify('Order placed successfully! You will receive a confirmation soon.', 'success');
-      logger.info('Order created successfully', { orderId: validation.data, userId: user.id });
+      setPendingOrderData(null);
+      notify('Order placed successfully! Payment submitted. You will receive a confirmation soon.', 'success');
+      logger.info('Order created successfully after payment', { userId: user?.id });
+      
+      // Send WhatsApp notification if configured (with mock fallback)
+      try {
+        const orderDoc = await getDoc(doc(firestore, 'orders', orderId));
+        if (orderDoc.exists()) {
+          const orderData = { id: orderId, ...orderDoc.data() };
+          const firstItem = medicines.find(m => m.id === cart[0]?.id);
+          const pharmacyId = firstItem?.pharmacyId || pendingOrderData.pharmacy_id;
+          
+          // Get pharmacy phone (with mock fallback)
+          let pharmacyPhone = null;
+          try {
+            if (pharmacyId) {
+              const pharmacyDoc = await getDoc(doc(firestore, 'users', pharmacyId));
+              if (pharmacyDoc.exists()) {
+                pharmacyPhone = pharmacyDoc.data().phone;
+              } else {
+                // Mock phone if pharmacy not found
+                pharmacyPhone = '+255712345678';
+                console.log('[Mock] Using mock pharmacy phone number');
+              }
+            } else {
+              // Mock phone if no pharmacy ID
+              pharmacyPhone = '+255712345678';
+              console.log('[Mock] Using mock pharmacy phone number');
+            }
+          } catch (phoneError) {
+            console.warn('Failed to get pharmacy phone, using mock:', phoneError);
+            pharmacyPhone = '+255712345678';
+          }
+          
+          // Send WhatsApp notification (will use mock if API unavailable)
+          if (pharmacyPhone) {
+            await sendOrderConfirmation(
+              orderData,
+              { fullName: user?.name || 'Customer', phone: user?.phone || '+255700000000' },
+              pharmacyPhone
+            );
+          }
+        }
+      } catch (whatsappError) {
+        console.warn('WhatsApp notification failed, continuing without it:', whatsappError);
+        // Don't fail the order if WhatsApp fails - it will use mock mode automatically
+      }
     } catch (error: any) {
-      handleError(error, notify, { userId: user.id, cartItems: cart.length });
+      handleError(error, notify, { userId: user?.id, cartItems: cart.length });
+      // Keep payment modal open if order creation fails
+      setShowPaymentModal(true);
+    }
+  };
+
+  // Handle WhatsApp ordering
+  const handleWhatsAppOrder = async () => {
+    if (!user || cart.length === 0) return;
+    
+    try {
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // Get pharmacy details from first item
+      const firstItem = medicines.find(m => m.id === cart[0].id);
+      const pharmacyId = firstItem?.pharmacyId || '';
+      const pharmacyName = firstItem?.pharmacyName || 'Pharmacy';
+      
+      // Get pharmacy phone (with mock fallback)
+      let pharmacyPhone = null;
+      try {
+        if (pharmacyId) {
+          const pharmacyDoc = await getDoc(doc(firestore, 'users', pharmacyId));
+          if (pharmacyDoc.exists()) {
+            pharmacyPhone = pharmacyDoc.data().phone;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to get pharmacy phone, using mock:', e);
+      }
+      
+      // Use mock phone if not available (for testing/demo)
+      if (!pharmacyPhone) {
+        pharmacyPhone = '+255712345678';
+        console.log('[Mock] Using mock pharmacy phone number for WhatsApp ordering');
+      }
+      
+      // Build order message
+      const itemsList = cart.map((item, index) => 
+        `${index + 1}. ${item.name} x${item.quantity} - TZS ${(item.price * item.quantity).toLocaleString()}`
+      ).join('\n');
+      
+      const message = `🛒 *NEW ORDER REQUEST*\n\n` +
+        `*Customer Details:*\n` +
+        `Name: ${user.name}\n` +
+        (user.phone ? `Phone: ${user.phone}\n` : '') +
+        (user.location ? `Location: ${user.location}\n` : '') +
+        `\n*Order Details:*\n` +
+        `\n*Items:*\n${itemsList}\n` +
+        `\n*Total: TZS ${total.toLocaleString()}*\n` +
+        `\nPlease confirm this order. Thank you! 🙏`;
+      
+      // Generate WhatsApp link and open
+      const whatsappUrl = generateWhatsAppOrderLink(pharmacyPhone, message);
+      window.open(whatsappUrl, '_blank');
+      
+      notify('Opening WhatsApp to place your order...', 'info');
+      
+      // Create order with viaWhatsapp flag
+      const orderData = {
+        patient_id: user.id,
+        patient_name: user.name,
+        pharmacy_id: pharmacyId,
+        pharmacy_name: pharmacyName,
+        items: cart.map(item => ({
+          inventory_id: item.id,
+          medicine_id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: total,
+        total_amount: total,
+        location: user.location || 'Not specified',
+        delivery_address: user.location || 'Not specified',
+        payment_method: 'whatsapp',
+        status: 'PENDING',
+        payment_status: 'PENDING',
+        delivery_status: 'PENDING',
+        viaWhatsapp: true,
+        createdAt: serverTimestamp()
+      };
+      
+      // Validate and create order (with error handling and mock fallback)
+      try {
+        const validation = validateAndSanitize(orderSchema, orderData);
+        if (validation.success) {
+          try {
+            await db.createOrder(validation.data!);
+            setCart([]);
+            setShowCart(false);
+            logger.info('WhatsApp order created', { userId: user.id });
+          } catch (orderError: any) {
+            console.warn('Failed to create order in database, continuing gracefully:', orderError);
+            // Continue - WhatsApp message was sent which is the main action
+            setCart([]);
+            setShowCart(false);
+            notify('WhatsApp order sent! Order will be processed manually.', 'info');
+          }
+        } else {
+          const errorMessage = formatValidationError(validation.errors!);
+          notify(errorMessage, 'error');
+        }
+      } catch (orderError) {
+        console.warn('Order validation/creation error, continuing:', orderError);
+        // Don't block user - WhatsApp was opened
+        setCart([]);
+        setShowCart(false);
+        notify('WhatsApp opened. Please complete your order there.', 'info');
+      }
+    } catch (error: any) {
+      console.warn('WhatsApp order error, continuing gracefully:', error);
+      // Don't show error to user - WhatsApp link was opened which is the main action
+      notify('WhatsApp opened. Please complete your order there.', 'info');
     }
   };
 
@@ -971,6 +1414,24 @@ export const Pharmacy: React.FC = memo(() => {
   // Patient View - Redesigned with Conversion Focus
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 relative pb-24 md:pb-6">
+      {/* Payment Modal for Medicine Checkout */}
+      {pendingOrderData && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setPendingOrderData(null);
+          }}
+          amount={pendingOrderData.total || pendingOrderData.total_amount || 0}
+          currency="TZS"
+          description={`Medicine order: ${pendingOrderData.items?.length || 0} item(s)`}
+          itemType="medicine"
+          itemId={`order-${Date.now()}`}
+          recipientId={pendingOrderData.pharmacy_id}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+      
       {/* Hero Section with Trust Signals */}
       <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-2xl md:rounded-[2.5rem] p-6 md:p-12 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
@@ -1290,47 +1751,60 @@ export const Pharmacy: React.FC = memo(() => {
                   <p className="text-sm text-gray-400 dark:text-gray-500">Add medicines to get started</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {cart.map(item => (
-                    <div key={item.id} className="bg-gray-50 dark:bg-[#0A1B2E] rounded-xl p-4 flex gap-4">
-                      <img 
-                        src={item.image || 'https://placehold.co/100x100?text=Medicine'} 
-                        className="w-20 h-20 object-cover rounded-lg"
-                        alt={item.name}
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-bold text-gray-900 dark:text-white mb-1">{item.name}</h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                          TZS {item.price.toLocaleString()} each
-                        </p>
-                        <p className="text-emerald-600 dark:text-emerald-400 font-bold mb-3">
-                          TZS {(item.price * item.quantity).toLocaleString()} total
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                            className="w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
-                            title="Decrease quantity"
-                          >
-                            <Minus size={16} />
-                          </button>
-                          <span className="font-bold text-gray-900 dark:text-white min-w-[2rem] text-center">
-                            {item.quantity}
+                    <div key={item.id} className="group bg-white dark:bg-[#0A1B2E] rounded-2xl p-4 border border-gray-100 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-lg transition-all duration-200 flex gap-4">
+                      <div className="relative flex-shrink-0">
+                        <img 
+                          src={item.image || 'https://placehold.co/100x100?text=Medicine'} 
+                          className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-xl border border-gray-200 dark:border-gray-700 group-hover:scale-105 transition-transform duration-200"
+                          alt={item.name}
+                        />
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
+                          {item.quantity}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-gray-900 dark:text-white mb-1.5 text-sm md:text-base line-clamp-2">{item.name}</h4>
+                        <div className="flex items-baseline gap-2 mb-3">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            TZS {item.price.toLocaleString()}
                           </span>
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                            className="w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
-                            title="Increase quantity"
-                          >
-                            <Plus size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleRemoveFromCart(item.id)}
-                            className="ml-auto p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors active:scale-95"
-                            title="Remove from cart"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <span className="text-xs text-gray-400">×</span>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{item.quantity}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
+                            TZS {(item.price * item.quantity).toLocaleString()}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 rounded-xl px-2 py-1 border border-gray-200 dark:border-gray-700">
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                className="w-7 h-7 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all active:scale-95"
+                                title="Decrease quantity"
+                              >
+                                <Minus size={14} className="text-gray-600 dark:text-gray-300" />
+                              </button>
+                              <span className="font-bold text-gray-900 dark:text-white min-w-[1.5rem] text-center text-sm">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                className="w-7 h-7 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all active:scale-95"
+                                title="Increase quantity"
+                              >
+                                <Plus size={14} className="text-gray-600 dark:text-gray-300" />
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveFromCart(item.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all active:scale-95 border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                              title="Remove from cart"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1340,34 +1814,71 @@ export const Pharmacy: React.FC = memo(() => {
             </div>
 
             {cart.length > 0 && (
-              <div className="p-4 md:p-6 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gradient-to-b from-transparent to-blue-50/50 dark:to-blue-900/10 pb-20 md:pb-6 safe-area-inset-bottom">
-                <div className="space-y-2 pb-2">
-                  <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
-                    <span>Subtotal ({cart.length} {cart.length === 1 ? 'item' : 'items'}):</span>
-                    <span>TZS {cartTotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
-                    <span>Delivery:</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Free</span>
+              <div className="p-4 md:p-6 border-t border-gray-200 dark:border-gray-700 space-y-5 bg-gradient-to-b from-transparent via-white/50 to-blue-50/50 dark:via-[#0F172A]/50 dark:to-blue-900/10 pb-20 md:pb-6 safe-area-inset-bottom backdrop-blur-sm">
+                {/* Order Summary */}
+                <div className="bg-white dark:bg-[#0A1B2E] rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <FileText size={16} />
+                    Order Summary
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Subtotal ({cart.length} {cart.length === 1 ? 'item' : 'items'})
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        TZS {cartTotal.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Delivery Fee</span>
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 size={14} />
+                        Free
+                      </span>
+                    </div>
+                    <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent dark:via-gray-700 my-3"></div>
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-base font-bold text-gray-900 dark:text-white">Total Amount</span>
+                      <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
+                        TZS {cartTotal.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-between items-center text-lg pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <span className="font-bold text-gray-900 dark:text-white">Total:</span>
-                  <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                    TZS {cartTotal.toLocaleString()}
-                  </span>
+
+                {/* Checkout Buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleCheckout}
+                    className="w-full group relative overflow-hidden py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white rounded-2xl font-bold text-base shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-300 flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+                    <Lock size={20} className="relative z-10" />
+                    <span className="relative z-10">Secure Checkout</span>
+                    <ArrowRight size={20} className="relative z-10 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                  
+                  <button
+                    onClick={handleWhatsAppOrder}
+                    className="w-full group relative overflow-hidden py-4 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 hover:from-green-600 hover:via-emerald-600 hover:to-teal-600 text-white rounded-2xl font-bold text-base shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 transition-all duration-300 flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+                    <MessageSquare size={20} className="relative z-10" />
+                    <span className="relative z-10">Order via WhatsApp</span>
+                  </button>
                 </div>
-                <button
-                  onClick={handleCheckout}
-                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
-                >
-                  <Lock size={20} />
-                  Secure Checkout
-                  <ArrowRight size={20} />
-                </button>
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 justify-center">
-                  <Shield size={14} />
-                  <span>Secure payment • Fast delivery • Money-back guarantee</span>
+
+                {/* Trust Badges */}
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 pt-2">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 dark:bg-[#0A1B2E]/50 rounded-full border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+                    <Shield size={12} className="text-blue-500" />
+                    <span>Secure & Encrypted</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 dark:bg-[#0A1B2E]/50 rounded-full border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+                    <Zap size={12} className="text-amber-500" />
+                    <span>Fast Delivery</span>
+                  </div>
                 </div>
               </div>
             )}

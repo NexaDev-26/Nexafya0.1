@@ -16,6 +16,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { EmptyState } from './EmptyState';
 import { SkeletonLoader } from './SkeletonLoader';
 import { handleError } from '../utils/errorHandler';
+import { paymentService } from '../services/paymentService';
+import { db as firestore } from '../lib/firebase';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 
 interface PaymentMethod {
   id: string;
@@ -79,19 +82,28 @@ export const PaymentIntegration: React.FC = () => {
   };
 
   const loadTransactions = async (): Promise<Transaction[]> => {
-    // Mock data - replace with actual database call
-    return [
-      {
-        id: '1',
-        amount: 50000,
-        currency: 'TZS',
-        method: 'M-Pesa',
-        status: 'COMPLETED',
-        description: 'Consultation fee',
-        date: new Date().toISOString(),
-        reference: 'MPESA-123456',
-      },
-    ];
+    try {
+      if (!user?.id) return [];
+      const txRef = collection(firestore, 'transactions');
+      const q = query(txRef, where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => {
+        const data: any = d.data();
+        return {
+          id: d.id,
+          amount: Number(data.amount || 0),
+          currency: data.currency || 'TZS',
+          method: (data.provider || 'unknown').toString(),
+          status: (data.status || 'PENDING') as any,
+          description: data.description || 'Payment',
+          date: data.createdAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+          reference: data.referenceNumber || data.reference || '',
+        } satisfies Transaction;
+      });
+    } catch (e) {
+      console.error('Failed to load transactions from Firestore:', e);
+      return [];
+    }
   };
 
   const handleAddPaymentMethod = async () => {
@@ -137,29 +149,60 @@ export const PaymentIntegration: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // In real implementation, call payment gateway API
-      const transaction: Transaction = {
-        id: Date.now().toString(),
-        amount: parseFloat(paymentAmount),
-        currency: 'TZS',
-        method: defaultMethod.name,
-        status: 'COMPLETED',
-        description: paymentDescription || 'Payment',
-        date: new Date().toISOString(),
-        reference: `REF-${Date.now()}`,
+      const mapMethodToProvider = (type: PaymentMethod['type']) => {
+        switch (type) {
+          case 'MPESA':
+            return 'mpesa' as const;
+          case 'TIGO_PESA':
+            return 'tigopesa' as const;
+          case 'AIRTEL_MONEY':
+            return 'airtel' as const;
+          case 'CARD':
+            return 'stripe' as const;
+          case 'BANK':
+            return 'bank' as const;
+          default:
+            return 'bank' as const;
+        }
       };
 
-      // Save transaction to database
-      // await db.createTransaction(transaction);
+      const provider = mapMethodToProvider(defaultMethod.type);
+      const amount = parseFloat(paymentAmount);
+
+      const result = await paymentService.processPayment({
+        amount,
+        currency: 'TZS',
+        provider,
+        userId: user?.id || '',
+        userName: user?.name || 'User',
+        description: paymentDescription || 'Payment',
+        phoneNumber: defaultMethod.accountNumber,
+        metadata: {
+          paymentMethodId: defaultMethod.id,
+          paymentMethodName: defaultMethod.name,
+        }
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Payment failed');
+      }
+
+      const transaction: Transaction = {
+        id: result.transactionId || Date.now().toString(),
+        amount,
+        currency: 'TZS',
+        method: defaultMethod.name,
+        status: result.requiresVerification ? 'PENDING' : 'COMPLETED',
+        description: paymentDescription || 'Payment',
+        date: new Date().toISOString(),
+        reference: result.referenceNumber || '',
+      };
 
       setTransactions([transaction, ...transactions]);
       setShowPaymentModal(false);
       setPaymentAmount('');
       setPaymentDescription('');
-      notify('Payment processed successfully!', 'success');
+      notify(result.message || 'Payment processed successfully!', result.requiresVerification ? 'info' : 'success');
     } catch (error) {
       handleError(error, notify);
     } finally {

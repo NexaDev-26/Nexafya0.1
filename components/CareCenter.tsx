@@ -33,6 +33,7 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
   
   // Reviews State
   const [reviews, setReviews] = useState<any[]>([]);
@@ -45,15 +46,48 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
       const loadDoctors = async () => {
           try {
               console.log('Loading doctors...');
+              setLoadingDoctors(true);
               const data = await db.getDoctors();
               console.log('Doctors loaded:', data.length, data);
-              setDoctors(data);
-              if (data.length === 0) {
-                  console.warn('No doctors found in database. Make sure to run the setup script or add doctors manually.');
+              
+              if (!data || data.length === 0) {
+                  console.warn('No doctors returned from database. Checking if doctors exist in Firestore...');
+                  setDoctors([]);
+                  setLoadingDoctors(false);
+                  return;
               }
-          } catch (error) {
+              
+              // Show all active doctors (verified and unverified)
+              // Verified doctors will be sorted first
+              const activeDoctors = data.filter((doc: Doctor) => {
+                const isActive = doc.isActive !== false;
+                if (!isActive) {
+                  console.log(`Doctor ${doc.name} (${doc.id}) is inactive, filtering out`);
+                }
+                return isActive;
+              });
+              
+              console.log('Active doctors after filter:', activeDoctors.length);
+              console.log('Active doctors details:', activeDoctors.map(d => ({ id: d.id, name: d.name, specialty: d.specialty, isActive: d.isActive, verificationStatus: d.verificationStatus })));
+              
+              setDoctors(activeDoctors);
+              setLoadingDoctors(false);
+              
+              if (activeDoctors.length === 0) {
+                  console.warn('No active doctors found. Make sure doctors are registered and active.');
+              } else {
+                  console.log(`✅ Successfully loaded ${activeDoctors.length} active doctors`);
+              }
+          } catch (error: any) {
               console.error('Error loading doctors:', error);
-              notify("Failed to load specialists. Please check console for details.", "error");
+              console.error('Error details:', {
+                  message: error.message,
+                  code: error.code,
+                  stack: error.stack
+              });
+              setLoadingDoctors(false);
+              setDoctors([]);
+              notify(`Failed to load specialists: ${error.message || 'Unknown error'}. Please check console for details.`, "error");
           }
       };
       loadDoctors();
@@ -105,13 +139,24 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
       { id: 5, name: 'Chest X-Ray', price: 35000, time: 'Instant', type: 'Imaging', lab: 'City Lab Hub' },
   ];
 
-  const specialties = ['All', ...Array.from(new Set(doctors.map(d => d.specialty)))];
+  // Filter to show only active doctors (verified and unverified)
+  // Verified doctors will be shown first, unverified will have a badge
+  const activeDoctors = doctors.filter(doc => 
+    (doc.isActive !== false) // Include if isActive is true or undefined
+  );
 
-  const filteredDoctors = doctors.filter(doc => {
+  const specialties = ['All', ...Array.from(new Set(activeDoctors.map(d => d.specialty)))];
+
+  const filteredDoctors = activeDoctors.filter(doc => {
       const matchesSearch = doc.name.toLowerCase().includes(doctorSearch.toLowerCase()) || 
                             doc.specialty.toLowerCase().includes(doctorSearch.toLowerCase());
       const matchesSpecialty = specialtyFilter === 'All' || doc.specialty === specialtyFilter;
       return matchesSearch && matchesSpecialty;
+  }).sort((a, b) => {
+    // Sort: Verified first, then by rating
+    if (a.verificationStatus === 'Verified' && b.verificationStatus !== 'Verified') return -1;
+    if (a.verificationStatus !== 'Verified' && b.verificationStatus === 'Verified') return 1;
+    return b.rating - a.rating;
   });
 
   const handleInitiateBooking = (item: any, type: 'lab' | 'doctor') => {
@@ -223,56 +268,137 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                       {/* Doctor Profile Header */}
                       <div className="relative h-48 bg-gradient-to-r from-blue-600 to-indigo-600">
                           <div className="absolute -bottom-16 left-8 flex items-end">
-                              <div className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 overflow-hidden bg-white">
-                                  <img src={selectedDoctor.avatar} className="w-full h-full object-cover" alt={selectedDoctor.name} />
+                              <div className="w-32 h-32 rounded-2xl border-4 border-white dark:border-gray-800 overflow-hidden bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
+                                  {selectedDoctor.avatar ? (
+                                      <img 
+                                          src={selectedDoctor.avatar} 
+                                          className="w-full h-full object-cover" 
+                                          alt={selectedDoctor.name}
+                                          onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              const parent = target.parentElement;
+                                              if (parent) {
+                                                  const initials = selectedDoctor.name.split(' ').length >= 2
+                                                      ? (selectedDoctor.name.split(' ')[0].charAt(0) + selectedDoctor.name.split(' ')[selectedDoctor.name.split(' ').length - 1].charAt(0)).toUpperCase()
+                                                      : selectedDoctor.name.substring(0, 2).toUpperCase();
+                                                  parent.innerHTML = `<span class="text-white font-bold text-3xl">${initials}</span>`;
+                                              }
+                                          }}
+                                      />
+                                  ) : (
+                                      <span className="text-white font-bold text-3xl">
+                                          {selectedDoctor.name.split(' ').length >= 2
+                                              ? (selectedDoctor.name.split(' ')[0].charAt(0) + selectedDoctor.name.split(' ')[selectedDoctor.name.split(' ').length - 1].charAt(0)).toUpperCase()
+                                              : selectedDoctor.name.substring(0, 2).toUpperCase()}
+                                      </span>
+                                  )}
                               </div>
                           </div>
                       </div>
                       
                       <div className="pt-20 px-8 pb-8">
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-                              <div>
-                                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
-                                      {selectedDoctor.name}
-                                      {selectedDoctor.isTrusted && (
-                                          <CheckCircle size={20} className="text-blue-500" fill="currentColor" />
-                                      )}
+                              <div className="flex-1">
+                                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap mb-2">
+                                      {selectedDoctor.name.startsWith('Dr.') ? selectedDoctor.name : `Dr. ${selectedDoctor.name}`}
                                       {selectedDoctor.verificationStatus === 'Verified' && (
-                                          <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full">Verified</span>
+                                          <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-full flex items-center gap-1">
+                                              <CheckCircle size={12} fill="currentColor" /> Verified
+                                          </span>
                                       )}
                                   </h2>
-                                  <p className="text-lg text-gray-500 dark:text-gray-300 font-medium flex items-center gap-2">
-                                      <Stethoscope size={18} />
-                                      {selectedDoctor.specialty} • {selectedDoctor.experience} Years Experience
-                                  </p>
-                                  <div className="flex items-center gap-4 mt-2 flex-wrap">
-                                      <div className="flex items-center gap-1 text-amber-500 font-bold text-sm">
-                                          <Star size={16} fill="currentColor" /> {selectedDoctor.rating.toFixed(1)} ({reviews.length} {reviews.length === 1 ? 'Review' : 'Reviews'})
+                                  
+                                  {/* Rating and Experience */}
+                                  <div className="flex items-center gap-4 mb-3 flex-wrap">
+                                      <div className="flex items-center gap-1 text-amber-500 font-bold">
+                                          <Star size={18} fill="currentColor" /> {selectedDoctor.rating.toFixed(1)}
                                       </div>
                                       <span className="text-gray-300">•</span>
-                                      <div className="text-sm text-gray-500 flex items-center gap-1">
-                                          <MapPin size={16} /> {selectedDoctor.location}
+                                      <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                                          {selectedDoctor.experience || selectedDoctor.yearsOfExperience || 0}y exp
+                                      </span>
+                                      {selectedDoctor.verificationStatus === 'Verified' && (
+                                          <>
+                                              <span className="text-gray-300">•</span>
+                                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+                                                  Verified Professional
+                                              </span>
+                                          </>
+                                      )}
+                                  </div>
+                                  
+                                  {/* Specialty and Location */}
+                                  <p className="text-lg text-blue-600 dark:text-blue-400 font-medium flex items-center gap-2 mb-3">
+                                      <Stethoscope size={18} />
+                                      {selectedDoctor.specialty || 'General Practitioner'} • {selectedDoctor.location || 'Tanzania'}
+                                  </p>
+                                  
+                                  {/* Bio/Description */}
+                                  {selectedDoctor.bio ? (
+                                      <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed max-w-2xl mb-3">
+                                          {selectedDoctor.bio}
+                                      </p>
+                                  ) : (
+                                      <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed max-w-2xl mb-3">
+                                          {selectedDoctor.name.startsWith('Dr.') ? selectedDoctor.name : `Dr. ${selectedDoctor.name}`} is a {selectedDoctor.specialty || 'General Practitioner'} with {selectedDoctor.experience || selectedDoctor.yearsOfExperience || 0} years of comprehensive medical experience. Dedicated to providing exceptional patient care with a focus on preventive medicine and holistic health.
+                                      </p>
+                                  )}
+                                  
+                                  {/* Location Details */}
+                                  <div className="flex items-center gap-4 mt-3 flex-wrap">
+                                      <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                                          <MapPin size={16} />
+                                          <span>{selectedDoctor.location || 'Tanzania'}</span>
                                       </div>
                                       {selectedDoctor.workplace && (
                                           <>
                                               <span className="text-gray-300">•</span>
-                                              <div className="text-sm text-gray-500 flex items-center gap-1">
-                                                  <MapPin size={16} /> {selectedDoctor.workplace}
+                                              <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                                                  <MapPin size={16} />
+                                                  <span>{selectedDoctor.workplace}</span>
+                                              </div>
+                                          </>
+                                      )}
+                                      {selectedDoctor.email && (
+                                          <>
+                                              <span className="text-gray-300">•</span>
+                                              <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                                                  <span>{selectedDoctor.email}</span>
+                                              </div>
+                                          </>
+                                      )}
+                                      {selectedDoctor.phone && (
+                                          <>
+                                              <span className="text-gray-300">•</span>
+                                              <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                                                  <Phone size={16} />
+                                                  <span>{selectedDoctor.phone}</span>
                                               </div>
                                           </>
                                       )}
                                   </div>
-                                  {selectedDoctor.bio && (
-                                      <p className="text-gray-600 dark:text-gray-300 text-sm mt-4 leading-relaxed max-w-2xl">{selectedDoctor.bio}</p>
-                                  )}
                               </div>
                               <div className="flex gap-3 mt-4 md:mt-0">
-                                  <button className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors">
+                                  <button 
+                                      onClick={() => {
+                                          if (onNavigate) onNavigate('messages');
+                                          notify('Opening chat...', 'info');
+                                      }}
+                                      className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                      title="Send Message"
+                                  >
                                       <MessageSquare size={20} />
                                   </button>
-                                  <button className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 transition-colors">
-                                      <Phone size={20} />
-                                  </button>
+                                  {selectedDoctor.phone && (
+                                      <a 
+                                          href={`tel:${selectedDoctor.phone}`}
+                                          className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+                                          title="Call Doctor"
+                                      >
+                                          <Phone size={20} />
+                                      </a>
+                                  )}
                               </div>
                           </div>
 
@@ -532,7 +658,12 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                   </div>
               </div>
 
-              {doctors.length === 0 ? (
+              {loadingDoctors ? (
+                  <div className="text-center py-20">
+                      <Loader2 className="mx-auto mb-4 text-blue-600 animate-spin" size={48} />
+                      <p className="text-gray-500 dark:text-gray-400 font-bold">Loading specialists...</p>
+                  </div>
+              ) : doctors.length === 0 ? (
                   <div className="text-center py-20">
                       <Stethoscope className="mx-auto mb-4 text-gray-400" size={48} />
                       <p className="text-gray-500 dark:text-gray-400 font-bold">No specialists found</p>
@@ -541,15 +672,18 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                           <button
                               onClick={async () => {
                                   notify('Adding sample doctors...', 'info');
+                                  setLoadingDoctors(true);
                                   const result = await addSampleDoctors();
                                   if (result.success) {
                                       notify(result.message, 'success');
                                       // Reload doctors
                                       const data = await db.getDoctors();
-                                      setDoctors(data);
+                                      const activeDoctors = data.filter((doc: Doctor) => doc.isActive !== false);
+                                      setDoctors(activeDoctors);
                                   } else {
                                       notify(result.message, 'error');
                                   }
+                                  setLoadingDoctors(false);
                               }}
                               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
                           >
@@ -565,62 +699,119 @@ export const CareCenter: React.FC<CareCenterProps> = ({ initialTab = 'ai', onBoo
                   </div>
               ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {filteredDoctors.map((doc) => (
-                          <div key={doc.id} onClick={() => setSelectedDoctor(doc)} className="bg-white dark:bg-[#0F172A] rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:scale-[1.02] transition-all cursor-pointer group flex flex-col">
-                              <div className="flex items-start justify-between mb-4">
-                                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                                      {doc.avatar ? (
-                                          <img src={doc.avatar} alt={doc.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.style.display = 'none';
-                                              const parent = target.parentElement;
-                                              if (parent) {
-                                                  parent.innerHTML = `<span class="text-white font-bold text-xl">${doc.name.charAt(0)}</span>`;
-                                              }
-                                          }} />
-                                      ) : (
-                                          <span className="text-white font-bold text-xl">{doc.name.charAt(0)}</span>
-                                      )}
+                      {filteredDoctors.map((doc) => {
+                          // Generate initials from name (e.g., "Dr. Zero" -> "DZ")
+                          const getInitials = (name: string) => {
+                              const parts = name.split(' ');
+                              if (parts.length >= 2) {
+                                  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+                              }
+                              return name.substring(0, 2).toUpperCase();
+                          };
+                          
+                          return (
+                              <div key={doc.id} onClick={() => setSelectedDoctor(doc)} className="bg-white dark:bg-[#0F172A] rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:scale-[1.02] transition-all cursor-pointer group flex flex-col">
+                                  {/* Top Section: Avatar and Info */}
+                                  <div className="flex items-start justify-between mb-4">
+                                      {/* Large Avatar with Initials */}
+                                      <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center flex-shrink-0">
+                                          {doc.avatar ? (
+                                              <img 
+                                                  src={doc.avatar} 
+                                                  alt={doc.name} 
+                                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                  onError={(e) => {
+                                                      const target = e.target as HTMLImageElement;
+                                                      target.style.display = 'none';
+                                                      const parent = target.parentElement;
+                                                      if (parent) {
+                                                          parent.innerHTML = `<span class="text-white font-bold text-2xl">${getInitials(doc.name)}</span>`;
+                                                      }
+                                                  }} 
+                                              />
+                                          ) : (
+                                              <span className="text-white font-bold text-2xl">{getInitials(doc.name)}</span>
+                                          )}
+                                      </div>
+                                      
+                                      {/* Right Side: Rating, Experience, Verification */}
+                                      <div className="flex flex-col items-end gap-1.5">
+                                          {/* Rating */}
+                                          <span className="flex items-center gap-1 text-amber-500 font-bold text-sm">
+                                              <Star size={14} fill="currentColor" /> {doc.rating.toFixed(1)}
+                                          </span>
+                                          
+                                          {/* Experience */}
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                              {doc.experience || doc.yearsOfExperience || 0}y exp
+                                          </span>
+                                          
+                                          {/* Verification Badge */}
+                                          {doc.verificationStatus === 'Verified' ? (
+                                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                  <CheckCircle size={10} /> Verified
+                                              </span>
+                                          ) : doc.verificationStatus === 'Pending' || doc.verificationStatus === 'Under Review' ? (
+                                              <span className="text-xs text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">⏳ Pending</span>
+                                          ) : (
+                                              <span className="text-xs text-gray-500 dark:text-gray-400 font-bold bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Unverified</span>
+                                          )}
+                                      </div>
                                   </div>
-                                  <div className="flex flex-col items-end gap-1">
-                                      <span className="flex items-center gap-1 text-amber-500 font-bold text-sm bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-lg">
-                                          <Star size={12} fill="currentColor" /> {doc.rating.toFixed(1)}
-                                      </span>
-                                      <span className="text-xs text-gray-400 font-medium">{doc.experience}y exp</span>
-                                      {doc.isTrusted && (
-                                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">Verified</span>
-                                      )}
-                                  </div>
-                              </div>
-                              
-                              <h4 className="font-bold text-lg text-gray-900 dark:text-white leading-tight mb-1">{doc.name}</h4>
-                              <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2 flex items-center gap-1">
-                                  <Stethoscope size={14} />
-                                  {doc.specialty} • {doc.location}
-                              </p>
-                              
-                              {doc.bio && (
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 line-clamp-2 leading-relaxed">{doc.bio}</p>
-                              )}
-
-                              {doc.workplace && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2 flex items-center gap-1">
-                                      <MapPin size={12} />
-                                      {doc.workplace}
+                                  
+                                  {/* Doctor Name */}
+                                  <h4 className="font-bold text-lg text-gray-900 dark:text-white leading-tight mb-2">
+                                      {doc.name.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}
+                                  </h4>
+                                  
+                                  {/* Specialty and Location */}
+                                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-3 flex items-center gap-1.5">
+                                      <Stethoscope size={14} className="flex-shrink-0" />
+                                      <span>{doc.specialty || 'General Practitioner'}</span>
+                                      <span className="text-blue-400">•</span>
+                                      <span>{doc.location || 'Tanzania'}</span>
                                   </p>
-                              )}
+                                  
+                                  {/* Bio/Description */}
+                                  {doc.bio ? (
+                                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-3 leading-relaxed">
+                                          {doc.bio}
+                                      </p>
+                                  ) : (
+                                      <p className="text-xs text-gray-500 dark:text-gray-500 mb-3 italic">
+                                          {doc.specialty || 'General Practitioner'} with {doc.experience || doc.yearsOfExperience || 0} years of experience.
+                                      </p>
+                                  )}
 
-                              <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                  <div>
-                                      <p className="text-[10px] text-gray-400 uppercase font-bold">Consultation</p>
-                                      <p className="font-bold text-gray-900 dark:text-white">TZS {doc.price.toLocaleString()}</p>
+                                  {/* Hospital/Workplace */}
+                                  {doc.workplace && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-500 mb-4 flex items-center gap-1.5">
+                                          <MapPin size={12} className="flex-shrink-0" />
+                                          <span>{doc.workplace}</span>
+                                      </p>
+                                  )}
+
+                                  {/* Bottom Section: Consultation Price and Action */}
+                                  <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                                      <div>
+                                          <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold mb-1">CONSULTATION</p>
+                                          <p className="font-bold text-lg text-gray-900 dark:text-white">
+                                              TZS {(doc.price || 0).toLocaleString()}
+                                          </p>
+                                      </div>
+                                      <button 
+                                          onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedDoctor(doc);
+                                          }}
+                                          className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 p-2.5 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors flex-shrink-0"
+                                      >
+                                          <ChevronRight size={20} />
+                                      </button>
                                   </div>
-                                  <button className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 p-2.5 rounded-xl hover:bg-blue-600 dark:hover:bg-blue-400 transition-colors">
-                                      <ChevronRight size={20} />
-                                  </button>
                               </div>
-                          </div>
-                      ))}
+                          );
+                      })}
                   </div>
               )}
           </div>

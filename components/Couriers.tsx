@@ -1,14 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Courier } from '../types';
-import { Truck, MapPin, Phone, Star, Bike, X, User, ChevronRight } from 'lucide-react';
+import { Truck, MapPin, Phone, Star, Bike, X, User, ChevronRight, Loader2 } from 'lucide-react';
 import { useNotification } from './NotificationSystem';
-
-const MOCK_COURIERS: Courier[] = [
-  { id: 'c1', name: 'Juma K.', vehicle: 'Motorcycle', status: 'Available', currentLocation: 'Kariakoo', ordersDelivered: 1450, rating: 4.9 },
-  { id: 'c2', name: 'Hassan M.', vehicle: 'Bicycle', status: 'Busy', currentLocation: 'Posta', ordersDelivered: 520, rating: 4.7 },
-  { id: 'c3', name: 'David L.', vehicle: 'Van', status: 'Available', currentLocation: 'Mbezi Beach', ordersDelivered: 3200, rating: 4.8 },
-];
+import { db } from '../services/db';
+import { SkeletonLoader } from './SkeletonLoader';
 
 interface CouriersProps {
     onNavigate?: (view: string) => void;
@@ -17,6 +13,43 @@ interface CouriersProps {
 export const Couriers: React.FC<CouriersProps> = ({ onNavigate }) => {
   const { notify } = useNotification();
   const [selectedCourier, setSelectedCourier] = useState<Courier | null>(null);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch couriers from database
+  useEffect(() => {
+    const loadCouriers = async () => {
+      setLoading(true);
+      try {
+        const couriersData = await db.getCouriers();
+        // Map to Courier type
+        const mappedCouriers: Courier[] = couriersData.map((c: any) => ({
+          id: c.id,
+          name: c.name || 'Courier',
+          vehicle: c.vehicle || 'Motorcycle',
+          status: c.status || 'Offline',
+          currentLocation: c.currentLocation || c.location || 'Not specified',
+          ordersDelivered: c.ordersDelivered || c.orders_delivered || 0,
+          rating: c.rating || 0,
+          trustTier: c.trustTier || c.trust_tier,
+          isTrusted: c.isTrusted || c.is_trusted || false,
+          verificationStatus: c.verificationStatus || c.verification_status || 'Pending',
+          phone: c.phone || '',
+          email: c.email || '',
+          avatar: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'Courier')}&background=random`
+        }));
+        setCouriers(mappedCouriers);
+      } catch (error) {
+        console.error('Failed to load couriers:', error);
+        notify('Failed to load couriers', 'error');
+        setCouriers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadCouriers();
+  }, [notify]);
 
   const handleAssign = (courierName: string) => {
     notify(`Assigned delivery task to ${courierName}.`, 'success');
@@ -52,12 +85,25 @@ export const Couriers: React.FC<CouriersProps> = ({ onNavigate }) => {
              </div>
              <MapPin size={48} className="text-blue-500 mb-2 z-10 animate-bounce" />
              <p className="text-gray-500 font-medium z-10">Live Map View</p>
-             <p className="text-xs text-gray-400 z-10 mt-1">Showing real-time positions of {MOCK_COURIERS.length} active couriers</p>
+             <p className="text-xs text-gray-400 z-10 mt-1">
+               {loading ? 'Loading couriers...' : `Showing real-time positions of ${couriers.length} active courier${couriers.length !== 1 ? 's' : ''}`}
+             </p>
         </div>
 
         {/* Courier List */}
         <div className="space-y-4">
-           {MOCK_COURIERS.map(courier => (
+          {loading ? (
+            <SkeletonLoader type="list" count={3} />
+          ) : couriers.length === 0 ? (
+            <div className="bg-gray-50 dark:bg-[#0A1B2E] rounded-2xl p-8 text-center border border-gray-200 dark:border-gray-700">
+              <Truck className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+              <p className="text-gray-500 dark:text-gray-400 font-medium mb-2">No couriers registered</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Registered couriers will appear here. Make sure couriers sign up with the COURIER role.
+              </p>
+            </div>
+          ) : (
+           couriers.map(courier => (
              <div 
                 key={courier.id} 
                 onClick={() => setSelectedCourier(courier)}
@@ -91,7 +137,8 @@ export const Couriers: React.FC<CouriersProps> = ({ onNavigate }) => {
                    </div>
                 </div>
              </div>
-           ))}
+           ))
+          )}
         </div>
       </div>
 

@@ -68,7 +68,17 @@ export const Consultations: React.FC<ConsultationsProps> = ({
       const fetchDoctors = async () => {
           try {
               const data = await db.getDoctors();
-              setDoctors(data);
+              // Show all active doctors (verified and unverified)
+              // Verified doctors will appear first in the list
+              const activeDoctors = data.filter((doc: Doctor) => 
+                (doc.isActive !== false) // Include if isActive is true or undefined
+              ).sort((a, b) => {
+                // Sort: Verified first, then by rating
+                if (a.verificationStatus === 'Verified' && b.verificationStatus !== 'Verified') return -1;
+                if (a.verificationStatus !== 'Verified' && b.verificationStatus === 'Verified') return 1;
+                return b.rating - a.rating;
+              });
+              setDoctors(activeDoctors);
           } catch (e) { console.error(e); }
       };
       if (role === UserRole.PATIENT) fetchDoctors();
